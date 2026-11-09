@@ -13,6 +13,7 @@ import app.folyo.auth.FolyoPrincipal;
 import app.folyo.auth.User;
 import app.folyo.auth.UserRepository;
 import app.folyo.message.BlockRepository;
+import app.folyo.moderation.ModerationService;
 import app.folyo.notification.NotificationService;
 import app.folyo.profile.Profile;
 import app.folyo.profile.ProfileService;
@@ -59,12 +60,15 @@ public class ChatService {
     private final StickerCatalog stickers;
     private final RealtimeHub hub;
     private final NotificationService notifications;
+    private final ModerationService moderation;
     /** Commit sonrasi isler (tik guncellemesi, bildirim kuyrugu) kendi transaction'inda calisir; aksi halde kaybolur. */
     private final TransactionTemplate afterCommitTx;
 
     public ChatService(ChatRepository chats, ProfileService profiles, UserRepository users, ViewerService viewers,
             BlockRepository blocks, AssetService assets, AssetRepository assetRepository, StickerCatalog stickers,
-            RealtimeHub hub, NotificationService notifications, PlatformTransactionManager transactionManager) {
+            RealtimeHub hub, NotificationService notifications, PlatformTransactionManager transactionManager,
+            ModerationService moderation) {
+        this.moderation = moderation;
         this.afterCommitTx = new TransactionTemplate(transactionManager);
         this.afterCommitTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.chats = chats;
@@ -165,6 +169,8 @@ public class ChatService {
             }
         }
         ChatRepository.Conversation conversation = member(conversationId, me);
+        moderation.requireCanWrite(me);
+        moderation.checkText(request.body());
         UUID otherId = conversation.other(me);
         Map<UUID, ChatRepository.Member> members = chats.members(conversationId).stream()
                 .collect(Collectors.toMap(ChatRepository.Member::userId, Function.identity()));
@@ -363,6 +369,37 @@ public class ChatService {
         afterCommit(() -> {
             hub.send(me, event);
             hub.send(other, event);
+        });
+    }
+
+    /** Sikayet edilebilir mesaj: kisi sohbetin uyesi, mesaj karsi tarafin ve silinmemis. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<ReportableMessage> reportable(long messageId, UUID reporterId) {
+        return chats.messageById(messageId)
+                .filter(m -> !m.deleted() && !m.senderId().equals(reporterId))
+                .filter(m -> chats.find(m.conversationId()).map(c -> c.has(reporterId)).orElse(false))
+                .map(m -> new ReportableMessage(m.id(), m.conversationId(), m.senderId(), preview(m)));
+    }
+
+    public record ReportableMessage(long id, UUID conversationId, UUID senderId, String preview) {
+    }
+
+    /** Moderator karari: mesaj herkesten silinir, medyasi depodan kaldirilir. */
+    @Transactional
+    public void removeByModerator(long messageId) {
+        ChatRepository.MessageRow row = chats.messageById(messageId).orElse(null);
+        if (row == null || row.deleted()) {
+            return;
+        }
+        chats.softDelete(messageId);
+        if (row.assetId() != null && row.kind() != MessageKind.STICKER) {
+            assets.deleteWithFiles(assetRepository.findAll(List.of(row.assetId())));
+        }
+        ChatRepository.Conversation conversation = chats.find(row.conversationId()).orElseThrow();
+        Map<String, Object> event = Map.of("type", "deleted", "conversationId", row.conversationId(), "messageId", messageId);
+        afterCommit(() -> {
+            hub.send(conversation.userLow(), event);
+            hub.send(conversation.userHigh(), event);
         });
     }
 

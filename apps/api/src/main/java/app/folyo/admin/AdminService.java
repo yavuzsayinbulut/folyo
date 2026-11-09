@@ -67,7 +67,7 @@ public class AdminService {
     }
 
     public record SettingsView(SmsView sms, EmailView email, StorageView storage, VerificationPolicy policy,
-            boolean allowLog, List<String> warnings) {
+            app.folyo.settings.ModerationPolicy moderation, boolean allowLog, List<String> warnings) {
     }
 
     public record S3Input(String endpoint, String region, String bucket, String accessKey, String secretKey,
@@ -114,7 +114,8 @@ public class AdminService {
         var s3 = storage.s3() == null ? null : new S3View(storage.s3().endpoint(), storage.s3().region(),
                 storage.s3().bucket(), storage.s3().accessKey(), storage.s3().pathStyle(), storage.s3().secretKeyEnc() != null);
         return new SettingsView(new SmsView(sms.provider(), twilio, netgsm), new EmailView(email.provider(), smtp),
-                new StorageView(storage.provider(), s3), policy, settings.allowLog(), warnings(sms, email, policy));
+                new StorageView(storage.provider(), s3), policy, settings.moderation(), settings.allowLog(),
+                warnings(sms, email, policy));
     }
 
     public SettingsView saveSms(UUID adminId, SmsInput input) {
@@ -226,6 +227,22 @@ public class AdminService {
         } finally {
             store.deleteQuietly(List.of(key));
         }
+    }
+
+    /** Yasakli ifadeler (en fazla 500, her biri 1-60 karakter), otomatik gizleme esigi, gunluk sikayet siniri. */
+    public SettingsView saveModeration(UUID adminId, app.folyo.settings.ModerationPolicy input) {
+        List<String> words = (input.blockedWords() == null ? List.<String>of() : input.blockedWords()).stream()
+                .map(String::strip).filter(w -> !w.isEmpty()).distinct().toList();
+        if (words.size() > 500 || words.stream().anyMatch(w -> w.length() > 60)) {
+            throw bad("En fazla 500 ifade, her biri en fazla 60 karakter");
+        }
+        int threshold = input.autoHideThreshold() == null ? 3 : input.autoHideThreshold();
+        int daily = input.dailyReportLimit() == null ? 20 : input.dailyReportLimit();
+        if (threshold < 1 || threshold > 100 || daily < 1 || daily > 1000) {
+            throw bad("Eşik 1-100, günlük sınır 1-1000 arasında olmalı");
+        }
+        settings.saveModeration(new app.folyo.settings.ModerationPolicy(words, threshold, daily), adminId);
+        return view();
     }
 
     public SettingsView savePolicy(UUID adminId, VerificationPolicy policy) {

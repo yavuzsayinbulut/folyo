@@ -57,6 +57,13 @@ public class AdminController {
         return admin.savePolicy(principal.userId(), body);
     }
 
+    @PutMapping("/settings/moderation")
+    public AdminService.SettingsView moderation(@AuthenticationPrincipal FolyoPrincipal principal,
+            @RequestBody app.folyo.settings.ModerationPolicy body) {
+        admin.requireAdmin(principal.userId());
+        return admin.saveModeration(principal.userId(), body);
+    }
+
     @PutMapping("/settings/storage")
     public AdminService.SettingsView storage(@AuthenticationPrincipal FolyoPrincipal principal,
             @RequestBody AdminService.StorageInput body) {

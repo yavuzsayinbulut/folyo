@@ -13,6 +13,7 @@ import app.folyo.asset.AssetView;
 import app.folyo.auth.FolyoPrincipal;
 import app.folyo.auth.UserRepository;
 import app.folyo.message.BlockRepository;
+import app.folyo.moderation.ModerationService;
 import app.folyo.notification.NotificationService;
 import app.folyo.profile.Profile;
 import app.folyo.profile.ProfileRepository;
@@ -59,11 +60,12 @@ public class PostService {
     private final NotificationService notifications;
     private final FeedSnapshots snapshots;
     private final FeedProperties feed;
+    private final ModerationService moderation;
 
     public PostService(PostRepository posts, AssetService assets, AssetRepository assetRepository,
             ProfileService profiles, ProfileRepository profileRepository, ViewerService viewers,
             PlatformSettings settings, BlockRepository blocks, UserRepository users, NotificationService notifications,
-            FeedSnapshots snapshots, FeedProperties feed) {
+            FeedSnapshots snapshots, FeedProperties feed, ModerationService moderation) {
         this.posts = posts;
         this.assets = assets;
         this.assetRepository = assetRepository;
@@ -76,6 +78,7 @@ public class PostService {
         this.notifications = notifications;
         this.snapshots = snapshots;
         this.feed = feed;
+        this.moderation = moderation;
     }
 
     public record Author(String username, String displayName, String avatarUrl, boolean verified) {
@@ -99,6 +102,7 @@ public class PostService {
     public PostView create(FolyoPrincipal principal, CreateRequest request) {
         UUID authorId = principal.userId();
         users.lockById(authorId).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+        moderation.requireCanWrite(authorId);
         String body = request.body() == null ? null : request.body().strip();
         if (body != null && body.isEmpty()) {
             body = null;
@@ -106,6 +110,7 @@ public class PostService {
         if (body != null && body.codePointCount(0, body.length()) > MAX_BODY) {
             throw bad("Gönderi en fazla " + MAX_BODY + " karakter olabilir");
         }
+        moderation.checkText(body);
         List<UUID> mediaIds = request.mediaIds() == null ? List.of() : request.mediaIds();
         if (body == null && mediaIds.isEmpty()) {
             throw bad("Bir şey yaz ya da fotoğraf/video ekle");
@@ -173,6 +178,61 @@ public class PostService {
         if (!canDelete(row, principal)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Gönderi bulunamadı");
         }
+        remove(row);
+    }
+
+    // --- moderasyon ---
+
+    /** Sikayet edilebilir gonderi/yanit: kisi gorebiliyor olmali. preview: inceleme icin icerigin ozeti. */
+    public record ReportablePost(UUID id, UUID authorId, UUID replyToId, String preview) {
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Optional<ReportablePost> reportable(UUID postId, FolyoPrincipal reporter) {
+        return posts.find(postId, scope(reporter)).filter(r -> canSee(r, reporter))
+                .map(r -> new ReportablePost(r.id(), r.authorId(), r.replyToId(), preview(r)));
+    }
+
+    /** Cok sikayet alan gonderi inceleme bitene kadar gizlenir (yazar ve sayfa sahibi gormeye devam eder). */
+    @Transactional
+    public boolean hideForModeration(UUID postId) {
+        PostRepository.Row row = posts.find(postId, scope(null)).orElse(null);
+        if (row == null || !"VISIBLE".equals(row.status())) {
+            return false;
+        }
+        posts.lock(postId);
+        posts.setStatus(postId, "HIDDEN");
+        if (row.replyToId() != null) {
+            posts.changeReplyCount(row.replyToId(), -1);
+        }
+        return true;
+    }
+
+    @Transactional
+    public void restoreAfterModeration(UUID postId) {
+        PostRepository.Row row = posts.find(postId, scope(null)).orElse(null);
+        if (row == null || !"HIDDEN".equals(row.status())) {
+            return;
+        }
+        posts.lock(postId);
+        posts.setStatus(postId, "VISIBLE");
+        if (row.replyToId() != null) {
+            posts.changeReplyCount(row.replyToId(), 1);
+        }
+    }
+
+    /** Moderator karari: gonderi ve fotograf/videolari silinir. */
+    @Transactional
+    public void removeByModerator(UUID postId) {
+        posts.find(postId, scope(null)).ifPresent(this::remove);
+    }
+
+    private static String preview(PostRepository.Row r) {
+        return (r.body() == null ? "" : r.body()) + (r.replyToId() != null ? " (yanıt)" : "");
+    }
+
+    private void remove(PostRepository.Row row) {
+        UUID postId = row.id();
         posts.lock(postId);
         if (row.replyToId() != null && "VISIBLE".equals(row.status())) {
             posts.changeReplyCount(row.replyToId(), -1);
@@ -200,6 +260,9 @@ public class PostService {
 
     @Transactional
     public PostView like(FolyoPrincipal principal, UUID postId, boolean like) {
+        if (like) {
+            moderation.requireCanWrite(principal.userId());
+        }
         PostRepository.Row row = posts.find(postId, scope(principal)).filter(r -> canSee(r, principal))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gönderi bulunamadı"));
         if (like) {

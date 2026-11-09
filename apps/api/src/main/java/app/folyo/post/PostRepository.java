@@ -63,6 +63,7 @@ class PostRepository {
              and p.audience in (:audiences) and pr.profile_audience in (:audiences)
              and (not :requireEmail or u.email_verified_at is not null)
              and (not :requirePhone or u.phone_verified_at is not null)
+             and u.suspended_at is null
              and\s""" + NOT_BLOCKED;
 
     /**
@@ -228,6 +229,10 @@ class PostRepository {
     void changeReplyCount(UUID postId, int delta) {
         jdbc.sql("update posts set reply_count = greatest(reply_count + :delta, 0) where id = :post")
                 .param("delta", delta).param("post", postId).update();
+    }
+
+    void setStatus(UUID id, String status) {
+        jdbc.sql("update posts set status = :status where id = :id").param("status", status).param("id", id).update();
     }
 
     void approve(UUID id) {

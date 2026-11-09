@@ -102,6 +102,10 @@ class ChatRepository {
                 .query(this::message).list();
     }
 
+    Optional<MessageRow> messageById(long messageId) {
+        return jdbc.sql(MESSAGE + " where id = :id").param("id", messageId).query(this::message).optional();
+    }
+
     Optional<MessageRow> message(UUID conversationId, long messageId) {
         return jdbc.sql(MESSAGE + " where conversation_id = :c and id = :id").param("c", conversationId).param("id", messageId)
                 .query(this::message).optional();

@@ -62,6 +62,13 @@ public class User {
     @Column(name = "auto_avatar_retry_at", insertable = false, updatable = false)
     private java.time.Instant autoAvatarRetryAt;
 
+    /** Topluluk kurallari nedeniyle askiya alinan hesap yazamaz (gonderi, yanit, mesaj, defter). */
+    @Column(name = "suspended_at", insertable = false, updatable = false)
+    private java.time.Instant suspendedAt;
+
+    @Column(name = "rules_accepted_at", insertable = false, updatable = false)
+    private java.time.Instant rulesAcceptedAt;
+
     @Column(name = "last_seen_at", insertable = false, updatable = false)
     private Instant lastSeenAt;
 
@@ -104,6 +111,14 @@ public class User {
 
     public Instant getPhoneVerifiedAt() {
         return phoneVerifiedAt;
+    }
+
+    public java.time.Instant getSuspendedAt() {
+        return suspendedAt;
+    }
+
+    public java.time.Instant getRulesAcceptedAt() {
+        return rulesAcceptedAt;
     }
 
     public String getProviderAvatarUrl() {

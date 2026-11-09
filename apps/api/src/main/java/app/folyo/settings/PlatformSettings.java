@@ -21,6 +21,7 @@ public class PlatformSettings {
     static final String EMAIL = "email";
     static final String POLICY = "policy";
     static final String STORAGE = "storage";
+    static final String MODERATION = "moderation";
 
     private final JdbcClient jdbc;
     private final JsonMapper json = JsonMapper.builder().build();
@@ -54,6 +55,14 @@ public class PlatformSettings {
 
     public StorageSettings storage() {
         return (StorageSettings) cache.get(STORAGE, k -> read(k, StorageSettings.class).orElse(StorageSettings.LOCAL));
+    }
+
+    public ModerationPolicy moderation() {
+        return (ModerationPolicy) cache.get(MODERATION, k -> read(k, ModerationPolicy.class).orElse(ModerationPolicy.DEFAULT));
+    }
+
+    public void saveModeration(ModerationPolicy value, UUID adminId) {
+        write(MODERATION, value, adminId);
     }
 
     public void saveStorage(StorageSettings value, UUID adminId) {

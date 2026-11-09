@@ -49,6 +49,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             new Rule("asset-upload", HttpMethod.POST, "/api/me/assets/**", 30),
             new Rule("chat-send", HttpMethod.POST, "/api/me/conversations/*/messages", 60),
             new Rule("post", HttpMethod.POST, "/api/me/posts", 30),
+            new Rule("report", HttpMethod.POST, "/api/me/reports", 10),
             new Rule("write", null, "/api/me/**", 120));
 
     private static final AntPathMatcher PATHS = new AntPathMatcher();

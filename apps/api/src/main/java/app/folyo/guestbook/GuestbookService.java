@@ -7,6 +7,7 @@ import app.folyo.auth.FolyoPrincipal;
 import app.folyo.auth.User;
 import app.folyo.auth.UserRepository;
 import app.folyo.message.BlockRepository;
+import app.folyo.moderation.ModerationService;
 import app.folyo.notification.NotificationService;
 import app.folyo.profile.Profile;
 import app.folyo.profile.ProfileService;
@@ -35,15 +36,17 @@ public class GuestbookService {
     private final NotificationService notifications;
     private final ViewerService viewers;
     private final BlockRepository blocks;
+    private final ModerationService moderation;
 
     public GuestbookService(GuestbookRepository entries, ProfileService profileService, UserRepository users,
-            NotificationService notifications, ViewerService viewers, BlockRepository blocks) {
+            NotificationService notifications, ViewerService viewers, BlockRepository blocks, ModerationService moderation) {
         this.entries = entries;
         this.profileService = profileService;
         this.users = users;
         this.notifications = notifications;
         this.viewers = viewers;
         this.blocks = blocks;
+        this.moderation = moderation;
     }
 
     /** Ziyaretcinin gorebilecegi mesajlar: sayfa ve defter kitlesi ziyaretciye aciksa. */
@@ -74,6 +77,8 @@ public class GuestbookService {
         // Yazarin satiri kilitlenir: ayni anda gelen istekler sayimi birlikte gecip siniri asamaz.
         User author = users.lockById(authorUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+        moderation.requireCanWrite(authorUserId);
+        moderation.checkText(body);
         Viewer viewer = viewers.viewer(principal, profile);
         if (!viewer.sees(profile.privacy().profile())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil bulunamadı");

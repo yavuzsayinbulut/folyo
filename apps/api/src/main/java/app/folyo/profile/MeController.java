@@ -38,7 +38,9 @@ public class MeController {
         this.viewers = viewers;
     }
 
-    public record UserView(UUID id, String name, String email, String avatarUrl, boolean admin, boolean verified) {
+    /** rulesAccepted: topluluk kurallarini kabul etti; suspended: hesap askiya alindi (yazamaz). */
+    public record UserView(UUID id, String name, String email, String avatarUrl, boolean admin, boolean verified,
+            boolean rulesAccepted, boolean suspended) {
     }
 
     public record ProfileView(UUID id, String username, String displayName, String bio, String location,
@@ -77,7 +79,8 @@ public class MeController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
         ProfileView profile = profileService.findByUserId(principal.userId()).map(ProfileView::from).orElse(null);
         return new MeView(new UserView(user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl(),
-                userService.isAdmin(user), viewers.status(user.getId()).verified()), profile);
+                userService.isAdmin(user), viewers.status(user.getId()).verified(), user.getRulesAcceptedAt() != null,
+                user.getSuspendedAt() != null), profile);
     }
 
     @PutMapping("/privacy")
