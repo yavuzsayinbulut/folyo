@@ -104,6 +104,13 @@ Tek sunucu, Docker Compose ve Caddy. Adımlar, yedekleme ve güvenlik notları [
   (giriş yapmamış ziyaretçi yalnız "Herkes" gönderilerini, kişiselleştirme olmadan görür). Sıralanmış liste 30 dk
   saklanır; aşağı kaydırırken sıra değişmez, tekrar ya da kayıp olmaz. Katsayılar `folyo.feed.*` ile ayarlanır.
   "En yeni" sekmesi tarihe göre kalır.
+- **Otomatik profil fotoğrafı:** Kişi fotoğraf yüklemezse sayfasındaki herkese açık kartlara göre görsel seçilir:
+  OAuth ile bağlı (sahipliği doğrulanmış) Spotify ya da Strava hesabında fotoğraf varsa o indirilip saklanır; yoksa ilk
+  üç platformun renk ve soyut motiflerinden (ses dalgası, objektif, katkı ızgarası, rota…) baş harfli özgün bir görsel
+  üretilir. Kullanıcı adıyla eklenen kartlar (GitHub, Instagram…) fotoğraf kaynağı olmaz; başkasının yüzü alınamaz.
+  Gizli ya da kısıtlı kartlar hesaba katılmaz. Yüklenen fotoğraf her zaman önceliklidir; hiç platform yoksa giriş
+  hesabının fotoğrafı kalır. Kart, bağlantı ya da ad değişince arka planda güncellenir; fotoğraf geçici bir hatayla
+  alınamazsa 6 saat sonra yeniden denenir.
 - **Medya (kalite korunur):** Kayıt veritabanında (`media_assets`), dosya depoda. Fotoğraf yeniden kodlanmaz: JPEG/PNG/WebP
   dosyasından yalnız konum ve kişisel meta veri blokları çıkarılır, renk profili ve yön bilgisi kalır. Listeler için
   480/1600 px kopyalar ayrıca üretilir; dokununca orijinal açılır. Video `ffmpeg -c copy` ile yeniden paketlenir (yeniden
