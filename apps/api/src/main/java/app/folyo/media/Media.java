@@ -40,10 +40,16 @@ public class Media {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /** Orijinal kalite (metadata kayipsiz silinmis). Yalniz kartta gosterilen kopya kucultulduyse doludur. */
+    @Column(name = "original_key")
+    private String originalKey;
+
     protected Media() {
     }
 
-    Media(UUID cardId, String storageKey, String contentType, int sizeBytes, int width, int height, int position) {
+    Media(UUID cardId, String storageKey, String originalKey, String contentType, int sizeBytes, int width, int height,
+            int position) {
+        this.originalKey = originalKey;
         this.cardId = cardId;
         this.storageKey = storageKey;
         this.contentType = contentType;
@@ -63,6 +69,10 @@ public class Media {
 
     public String getStorageKey() {
         return storageKey;
+    }
+
+    public String getOriginalKey() {
+        return originalKey;
     }
 
     public String getContentType() {

@@ -35,6 +35,9 @@ public class MediaController {
         if (file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bir fotoğraf seç");
         }
+        if (file.getSize() > 25L * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.CONTENT_TOO_LARGE, "Fotoğraf en fazla 25 MB olabilir");
+        }
         return mediaService.upload(principal.userId(), cardId, file.getBytes());
     }
 
@@ -46,8 +49,9 @@ public class MediaController {
 
     /** Fotograf icerigi id'ye bagli ve degismez; tarayici bir yil onbellekte tutabilir. */
     @GetMapping("/api/public/media/{mediaId}")
-    public ResponseEntity<byte[]> read(@AuthenticationPrincipal FolyoPrincipal principal, @PathVariable UUID mediaId) {
-        return mediaService.read(mediaId, principal == null ? null : principal.userId())
+    public ResponseEntity<byte[]> read(@AuthenticationPrincipal FolyoPrincipal principal, @PathVariable UUID mediaId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String size) {
+        return mediaService.read(mediaId, principal, "original".equals(size))
                 .map(file -> ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(file.contentType()))
                         .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePrivate().immutable())

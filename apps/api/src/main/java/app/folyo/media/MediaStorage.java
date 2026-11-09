@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class MediaStorage {
 
     private static final Logger log = LoggerFactory.getLogger(MediaStorage.class);
-    private static final Pattern KEY = Pattern.compile("^[0-9a-f-]{36}\\.(jpg|png)$");
+    private static final Pattern KEY = Pattern.compile("^[0-9a-f-]{36}\\.(jpg|png|webp)$");
 
     private final Path root;
 

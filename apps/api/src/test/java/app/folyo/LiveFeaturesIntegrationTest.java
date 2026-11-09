@@ -294,7 +294,10 @@ class LiveFeaturesIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/jpeg"))
                 .andReturn().getResponse().getContentAsByteArray();
-        assertThat(new String(served, StandardCharsets.ISO_8859_1)).doesNotContain("Exif").doesNotContain("GPS");
+        // Goruntu yeniden kodlanmaz: konum notu atilir, yalniz yon (Orientation) tasiyan kucuk bir EXIF kalir.
+        String raw = new String(served, StandardCharsets.ISO_8859_1);
+        assertThat(raw).doesNotContain("GPS");
+        assertThat(raw.indexOf("Exif")).isEqualTo(raw.lastIndexOf("Exif"));
 
         mvc.perform(get("/api/public/profiles/" + usernameOf(owner)))
                 .andExpect(jsonPath("$.cards[0].media", hasSize(1)))

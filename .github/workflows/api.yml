@@ -24,7 +24,9 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
-      # Testcontainers, runner'daki Docker ile gercek Postgres acar.
+      # Video testleri ffmpeg ister.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # Testcontainers, runner'daki Docker ile gercek Postgres (ve S3 testi icin MinIO) acar.
       - run: ./mvnw -B verify
 
   image:

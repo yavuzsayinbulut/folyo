@@ -1,5 +1,8 @@
 package app.folyo.media;
 
+import app.folyo.auth.FolyoPrincipal;
+import app.folyo.access.CardAccess;
+import app.folyo.asset.ImageProcessor;
 import app.folyo.card.Card;
 import app.folyo.card.CardRepository;
 import app.folyo.card.CardType;
@@ -25,11 +28,13 @@ public class MediaService {
 
     static final int MAX_PHOTOS_PER_GALLERY = 12;
 
-    public record MediaView(UUID id, String url, Integer width, Integer height) {
+    /** url: kartta hizli acilan kopya; originalUrl: orijinal kalite. */
+    public record MediaView(UUID id, String url, String originalUrl, Integer width, Integer height) {
 
         static MediaView from(Media media) {
-            return new MediaView(media.getId(), "/api/public/media/" + media.getId(), media.getWidth(),
-                    media.getHeight());
+            String url = "/api/public/media/" + media.getId();
+            return new MediaView(media.getId(), url, media.getOriginalKey() == null ? url : url + "?size=original",
+                    media.getWidth(), media.getHeight());
         }
     }
 
@@ -39,16 +44,20 @@ public class MediaService {
     private final MediaRepository media;
     private final CardRepository cards;
     private final ProfileService profileService;
-    private final PhotoNormalizer normalizer;
+    static final int DISPLAY_EDGE = 1600;
+
+    private final ImageProcessor images;
     private final MediaStorage storage;
     private final TransactionTemplate transaction;
+    private final CardAccess cardAccess;
 
     public MediaService(MediaRepository media, CardRepository cards, ProfileService profileService,
-            PhotoNormalizer normalizer, MediaStorage storage, TransactionTemplate transaction) {
+            ImageProcessor images, MediaStorage storage, TransactionTemplate transaction, CardAccess cardAccess) {
+        this.cardAccess = cardAccess;
         this.media = media;
         this.cards = cards;
         this.profileService = profileService;
-        this.normalizer = normalizer;
+        this.images = images;
         this.storage = storage;
         this.transaction = transaction;
     }
@@ -58,9 +67,26 @@ public class MediaService {
         Profile owner = profileService.requireByUserId(userId);
         requireGallery(cardId, owner.getId());
 
-        PhotoNormalizer.NormalizedPhoto photo = normalizer.normalize(upload);
-        String key = UUID.randomUUID() + ("image/png".equals(photo.contentType()) ? ".png" : ".jpg");
-        storage.write(key, photo.bytes());
+        // Orijinal kalite korunur (metadata kayipsiz silinir); kartta hizli acilsin diye buyukse 1600 px kopya da yazilir.
+        ImageProcessor.Processed photo = images.process(upload, List.of(new ImageProcessor.Spec("large", DISPLAY_EDGE, false)));
+        boolean resized = Math.max(photo.width(), photo.height()) > DISPLAY_EDGE;
+        String originalKey = UUID.randomUUID() + "." + extension(photo.format());
+        storage.write(originalKey, photo.original());
+        String key;
+        String contentType;
+        int size;
+        if (resized) {
+            ImageProcessor.Variant large = photo.variants().get("large");
+            key = UUID.randomUUID() + "." + large.ext();
+            storage.write(key, large.bytes());
+            contentType = large.contentType();
+            size = large.bytes().length;
+        } else {
+            key = originalKey;
+            contentType = contentType(photo.format());
+            size = photo.original().length;
+        }
+        List<String> written = resized ? List.of(key, originalKey) : List.of(key);
         try {
             Media saved = transaction.execute(status -> {
                 Profile profile = profileService.lockByUserId(userId);
@@ -70,26 +96,26 @@ public class MediaService {
                             "Bir galeride en fazla " + MAX_PHOTOS_PER_GALLERY + " fotoğraf olabilir");
                 }
                 int position = media.findMaxPosition(cardId) + 1;
-                return media.save(new Media(cardId, key, photo.contentType(), photo.bytes().length, photo.width(),
+                return media.save(new Media(cardId, key, resized ? originalKey : null, contentType, size, photo.width(),
                         photo.height(), position));
             });
             return MediaView.from(saved);
         } catch (RuntimeException e) {
-            storage.deleteQuietly(List.of(key));
+            storage.deleteQuietly(written);
             throw e;
         }
     }
 
     public void delete(UUID userId, UUID mediaId) {
-        String key = transaction.execute(status -> {
+        List<String> keys = transaction.execute(status -> {
             Profile profile = profileService.lockByUserId(userId);
             Media item = media.findById(mediaId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Fotoğraf bulunamadı"));
             requireGallery(item.getCardId(), profile.getId());
             media.delete(item);
-            return item.getStorageKey();
+            return MediaRepository.keys(List.of(item));
         });
-        storage.deleteQuietly(List.of(key));
+        storage.deleteQuietly(keys);
     }
 
     /** Kart listelerinde galeri fotograflarini tek sorguda getirir. */
@@ -107,16 +133,33 @@ public class MediaService {
         return result;
     }
 
-    /** Gizli galerinin fotografi yalniz sahibine gosterilir. */
-    public Optional<StoredFile> read(UUID mediaId, UUID viewerUserId) {
+    /** Fotograf, kartini gorebilen kisiye gosterilir (gizli galeri yalniz sahibine, kitle secimine uyarak). */
+    public Optional<StoredFile> read(UUID mediaId, FolyoPrincipal principal, boolean original) {
         return media.findById(mediaId).flatMap(item -> cards.findById(item.getCardId())
-                .filter(card -> card.isVisible() || isOwner(card, viewerUserId))
-                .map(card -> new StoredFile(storage.read(item.getStorageKey()), item.getContentType())));
+                .filter(card -> cardAccess.canSee(card, principal))
+                .map(card -> original && item.getOriginalKey() != null
+                        ? new StoredFile(storage.read(item.getOriginalKey()), contentTypeOf(item.getOriginalKey()))
+                        : new StoredFile(storage.read(item.getStorageKey()), item.getContentType())));
     }
 
-    private boolean isOwner(Card card, UUID viewerUserId) {
-        return viewerUserId != null && profileService.findByUserId(viewerUserId)
-                .map(p -> p.getId().equals(card.getProfileId())).orElse(false);
+    private static String extension(ImageProcessor.Format format) {
+        return switch (format) {
+            case JPEG -> "jpg";
+            case PNG -> "png";
+            case WEBP -> "webp";
+        };
+    }
+
+    private static String contentType(ImageProcessor.Format format) {
+        return switch (format) {
+            case JPEG -> "image/jpeg";
+            case PNG -> "image/png";
+            case WEBP -> "image/webp";
+        };
+    }
+
+    private static String contentTypeOf(String key) {
+        return key.endsWith(".png") ? "image/png" : key.endsWith(".webp") ? "image/webp" : "image/jpeg";
     }
 
     private void requireGallery(UUID cardId, UUID profileId) {

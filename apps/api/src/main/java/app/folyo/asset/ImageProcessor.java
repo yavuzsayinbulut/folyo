@@ -1,4 +1,4 @@
-package app.folyo.media;
+package app.folyo.asset;
 
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Metadata;
@@ -10,6 +10,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import javax.imageio.IIOImage;
@@ -25,25 +28,90 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Yuklenen fotografi herkese acik sunulabilir hale getirir: EXIF yonunu uygular, uzun kenari 2048 px'e indirir ve
- * yeniden kodlar. Yeniden kodlama GPS konumu dahil butun metadata'yi siler.
+ * Yuklenen gorsel: orijinal kalite korunur (yalniz metadata kayipsiz silinir); listelerde hizli acilsin diye
+ * yuksek kaliteli kucuk kopyalar ayrica uretilir. Tur, dosya adina degil ilk baytlara bakilarak belirlenir.
  */
 @Component
-public class PhotoNormalizer {
+public class ImageProcessor {
 
-    static final int MAX_EDGE = 2048;
-    private static final long MAX_SOURCE_PIXELS = 50_000_000L;
-    private static final float JPEG_QUALITY = 0.85f;
-    /** Ayni anda en fazla bu kadar fotograf islenir; es zamanli buyuk yuklemeler bellegi tuketemez. */
+    static final long MAX_SOURCE_PIXELS = 60_000_000L;
+    private static final float JPEG_QUALITY = 0.9f;
     private static final int MAX_CONCURRENT = 2;
 
     private final Semaphore slots = new Semaphore(MAX_CONCURRENT);
 
-    public record NormalizedPhoto(byte[] bytes, String contentType, int width, int height) {
+    public enum Format {
+        JPEG("image/jpeg", "jpg"),
+        PNG("image/png", "png"),
+        WEBP("image/webp", "webp");
+
+        final String contentType;
+        final String ext;
+
+        Format(String contentType, String ext) {
+            this.contentType = contentType;
+            this.ext = ext;
+        }
     }
 
-    public NormalizedPhoto normalize(byte[] input) {
-        String contentType = detectType(input);
+    /** name: kopyanin adi (thumb, large, avatar...). square: ortadan kare kirpilir. */
+    public record Spec(String name, int maxEdge, boolean square) {
+    }
+
+    public record Variant(byte[] bytes, String contentType, String ext, int width, int height) {
+    }
+
+    public record Processed(Format format, byte[] original, int width, int height, Map<String, Variant> variants) {
+    }
+
+    public Processed process(byte[] input, List<Spec> specs) {
+        Format format = detect(input);
+        acquire();
+        try {
+            int orientation = format == Format.JPEG ? orientation(input) : 1;
+            byte[] original = switch (format) {
+                case JPEG -> LosslessMetadata.stripJpeg(input, orientation);
+                case PNG -> LosslessMetadata.stripPng(input);
+                case WEBP -> LosslessMetadata.stripWebp(input);
+            };
+            Decoded decoded = decode(input, specs.stream().mapToInt(Spec::maxEdge).max().orElse(0));
+            boolean swap = orientation >= 5 && orientation <= 8;
+            int width = swap ? decoded.height : decoded.width;
+            int height = swap ? decoded.width : decoded.height;
+            BufferedImage oriented = applyOrientation(decoded.image, orientation);
+            boolean alpha = oriented.getColorModel().hasAlpha();
+            Map<String, Variant> variants = new LinkedHashMap<>();
+            for (Spec spec : specs) {
+                BufferedImage source = spec.square() ? centerSquare(oriented) : oriented;
+                BufferedImage scaled = fitWithin(source, spec.maxEdge(), alpha);
+                byte[] bytes = alpha ? encodePng(scaled) : encodeJpeg(scaled);
+                variants.put(spec.name(), new Variant(bytes, alpha ? "image/png" : "image/jpeg", alpha ? "png" : "jpg",
+                        scaled.getWidth(), scaled.getHeight()));
+            }
+            return new Processed(format, original, width, height, variants);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bu görsel okunamadı");
+        } finally {
+            slots.release();
+        }
+    }
+
+    /** Uzantiya ya da istemcinin bildirdigi tipe degil, dosyanin ilk baytlarina bakilir. */
+    public static Format detect(byte[] b) {
+        if (b.length > 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8 && (b[2] & 0xFF) == 0xFF) {
+            return Format.JPEG;
+        }
+        if (b.length > 8 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') {
+            return Format.PNG;
+        }
+        if (b.length > 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F' && b[8] == 'W' && b[9] == 'E'
+                && b[10] == 'B' && b[11] == 'P') {
+            return Format.WEBP;
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Yalnız JPEG, PNG veya WebP yükleyebilirsin");
+    }
+
+    private void acquire() {
         try {
             if (!slots.tryAcquire(20, TimeUnit.SECONDS)) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Şu an çok yoğun, biraz sonra tekrar dene");
@@ -52,50 +120,17 @@ public class PhotoNormalizer {
             Thread.currentThread().interrupt();
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Yükleme yarıda kaldı");
         }
-        try {
-            return normalizeDetected(input, contentType);
-        } finally {
-            slots.release();
-        }
     }
 
-    private NormalizedPhoto normalizeDetected(byte[] input, String contentType) {
-        BufferedImage image = decode(input);
-        if ("image/jpeg".equals(contentType)) {
-            image = applyOrientation(image, orientation(input));
-        }
-        image = fitWithin(image, MAX_EDGE, "image/png".equals(contentType));
-        byte[] output = "image/jpeg".equals(contentType) ? encodeJpeg(image) : encodePng(image);
-        return new NormalizedPhoto(output, contentType, image.getWidth(), image.getHeight());
+    private record Decoded(BufferedImage image, int width, int height) {
     }
 
-    /** Uzantiya ya da istemcinin bildirdigi tipe degil, dosyanin ilk baytlarina bakilir. */
-    static String detectType(byte[] bytes) {
-        if (bytes.length > 3 && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF) {
-            return "image/jpeg";
-        }
-        byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
-        if (bytes.length > png.length) {
-            boolean match = true;
-            for (int i = 0; i < png.length; i++) {
-                match &= bytes[i] == png[i];
-            }
-            if (match) {
-                return "image/png";
-            }
-        }
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Yalnız JPEG veya PNG yükleyebilirsin");
-    }
-
-    /**
-     * Boyut, piksel verisi acilmadan basliktan okunur; dev gorsellerle bellek doldurulmasi engellenir.
-     * Buyuk fotograflar okunurken seyreltilir: bellege tam cozunurluk yerine hedefin biraz ustu alinir.
-     */
-    private static BufferedImage decode(byte[] input) {
+    /** Boyut once basliktan okunur (dev gorselle bellek doldurulamaz); kopyalar icin gerektiginden buyuk okunmaz. */
+    private static Decoded decode(byte[] input, int largestEdge) {
         try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(input))) {
             Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
             if (!readers.hasNext()) {
-                throw unreadable();
+                throw new IllegalArgumentException("okuyucu yok");
             }
             ImageReader reader = readers.next();
             try {
@@ -106,28 +141,20 @@ public class PhotoNormalizer {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Görsel çözünürlüğü çok yüksek");
                 }
                 ImageReadParam param = reader.getDefaultReadParam();
-                int step = subsampling(width, height);
+                int step = largestEdge <= 0 ? 1 : Math.max(1, Math.max(width, height) / largestEdge);
                 if (step > 1) {
                     param.setSourceSubsampling(step, step, 0, 0);
                 }
-                return reader.read(0, param);
+                return new Decoded(reader.read(0, param), width, height);
             } finally {
                 reader.dispose();
             }
-        } catch (IOException | RuntimeException e) {
-            if (e instanceof ResponseStatusException status) {
-                throw status;
-            }
-            throw unreadable();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("okunamadi", e);
         }
     }
 
-    /** Okunan gorselin uzun kenari MAX_EDGE'in altina dusmeyecek en buyuk tam sayi seyreltme adimi. */
-    static int subsampling(int width, int height) {
-        return Math.max(1, Math.max(width, height) / MAX_EDGE);
-    }
-
-    private static int orientation(byte[] input) {
+    static int orientation(byte[] input) {
         try {
             Metadata metadata = ImageMetadataReader.readMetadata(new ByteArrayInputStream(input));
             ExifIFD0Directory exif = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
@@ -140,7 +167,7 @@ public class PhotoNormalizer {
         return 1;
     }
 
-    /** Telefonlarin cogu fotografi yan cekip EXIF'e "dondur" notu dusur; metadata silinmeden once donus uygulanir. */
+    /** Telefonlarin cogu fotografi yan cekip EXIF'e "dondur" notu duser; kopyalara donus uygulanir. */
     static BufferedImage applyOrientation(BufferedImage source, int orientation) {
         int quarterTurns = switch (orientation) {
             case 3, 4 -> 2;
@@ -154,7 +181,8 @@ public class PhotoNormalizer {
         int w = source.getWidth();
         int h = source.getHeight();
         boolean swap = quarterTurns % 2 == 1;
-        BufferedImage rotated = new BufferedImage(swap ? h : w, swap ? w : h, BufferedImage.TYPE_INT_RGB);
+        int type = source.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+        BufferedImage rotated = new BufferedImage(swap ? h : w, swap ? w : h, type);
         Graphics2D g = rotated.createGraphics();
         try {
             g.translate(rotated.getWidth() / 2.0, rotated.getHeight() / 2.0);
@@ -167,6 +195,11 @@ public class PhotoNormalizer {
         return rotated;
     }
 
+    private static BufferedImage centerSquare(BufferedImage source) {
+        int edge = Math.min(source.getWidth(), source.getHeight());
+        return source.getSubimage((source.getWidth() - edge) / 2, (source.getHeight() - edge) / 2, edge, edge);
+    }
+
     private static BufferedImage fitWithin(BufferedImage source, int maxEdge, boolean keepAlpha) {
         int w = source.getWidth();
         int h = source.getHeight();
@@ -174,14 +207,12 @@ public class PhotoNormalizer {
         int targetW = Math.max(1, (int) Math.round(w * scale));
         int targetH = Math.max(1, (int) Math.round(h * scale));
         int type = keepAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
-        if (scale == 1.0 && source.getType() == type) {
-            return source;
-        }
         BufferedImage target = new BufferedImage(targetW, targetH, type);
         Graphics2D g = target.createGraphics();
         try {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.drawImage(source, 0, 0, targetW, targetH, null);
         } finally {
             g.dispose();
@@ -214,9 +245,5 @@ public class PhotoNormalizer {
             throw new IllegalStateException("PNG yazilamadi", e);
         }
         return out.toByteArray();
-    }
-
-    private static ResponseStatusException unreadable() {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bu görsel okunamadı");
     }
 }
