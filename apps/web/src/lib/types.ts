@@ -273,3 +273,11 @@ export type RealtimeEvent =
   | { type: "typing"; conversationId: string; userId: string }
   | { type: "presence"; userId: string; online: boolean; lastSeenAt: string | null; hidden: boolean }
   | { type: "deleted"; conversationId: string; messageId: number };
+
+/** Profil gorseli: avatarUrl herkesin gordugu (yuklenen > otomatik > giris hesabinin fotografi). */
+export type AvatarStatus = {
+  avatarUrl: string | null;
+  uploadedUrl: string | null;
+  auto: { url: string; source: "SPOTIFY" | "STRAVA" | "GENERATED"; platforms: string[] } | null;
+  accountUrl: string | null;
+};
