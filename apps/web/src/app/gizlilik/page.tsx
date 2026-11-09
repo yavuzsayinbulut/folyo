@@ -26,6 +26,14 @@ const SECTIONS: { title: string; items: string[] }[] = [
     ],
   },
   {
+    title: "Şikayet ve moderasyon",
+    items: [
+      "Bir içeriği şikayet ettiğinde seçtiğin neden, açıklaman ve içeriğin o anki kopyası yönetici incelemesi için saklanır. Şikayet edenin kimliği içerik sahibine gösterilmez.",
+      "Bir sohbet mesajını şikayet edersen yalnız o mesajın kopyası yöneticiyle paylaşılır; sohbetin geri kalanı paylaşılmaz.",
+      "Topluluk kurallarını kabul ettiğin tarih saklanır. Kurallara aykırı içerik kaldırılabilir, hesap askıya alınabilir.",
+    ],
+  },
+  {
     title: "Çerezler",
     items: [
       "Yalnız çalışmak için gereken çerezler: oturum çerezi ve form güvenliği (CSRF) çerezi. Reklam veya takip çerezi kullanılmaz.",

@@ -124,6 +124,23 @@ Tek sunucu, Docker Compose ve Caddy. Adımlar, yedekleme ve güvenlik notları [
   (gizleyen başkasınınkini de göremez). Herkesten silme 48 saat içinde. Uygulama kapalıysa push bildirimi gider.
 - **Sticker:** İki hazır paket (özgün çizimler) ve kişinin kendi şeffaf PNG/WebP sticker'ları.
 
+## Şikayet ve moderasyon
+
+App Store'un kullanıcı içeriği kuralına (1.2) göre:
+
+- **Şikayet:** Gönderi, yanıt, sohbet mesajı, sayfa ve defter yazısı; neden (spam, taciz, nefret, müstehcen, şiddet,
+  kendine zarar, taklit, yasa dışı, diğer), isteğe bağlı açıklama ve "bu kişiyi de engelle". Kişi yalnız görebildiği
+  başkasının içeriğini şikayet eder; aynı içeriği bir kez, günde sınırlı sayıda (varsayılan 20).
+- **Otomatik gizleme:** Varsayılan 3 farklı kişi şikayet edince gönderi/defter yazısı karar verilene kadar gizlenir
+  (yazar "inceleniyor" olarak görür).
+- **Yönetim (`/admin`):** İçeriğe göre gruplu kuyruk (özet, nedenler, notlar), "İçeriği kaldır" / "Uygun" (gizlenmişse geri
+  açılır), "Yazarı askıya al"; askıya alınan hesaplar listesi. Askıdaki hesap paylaşım, yanıt, mesaj ve beğeni yapamaz;
+  gönderileri Keşfet'te görünmez.
+- **Filtre:** Yönetici yasaklı ifadeleri girer; büyük/küçük harf, aksan ve rakamla yazım (k0tü) yakalanır, kelime olarak
+  eşleşir.
+- **Kurallar:** İlk paylaşımda topluluk kuralları (`/kurallar`, sıfır tolerans) kabul edilir; sunucu `RULES_REQUIRED`
+  koduyla ister. Destek adresi `NEXT_PUBLIC_SUPPORT_EMAIL` ile kurallar sayfasında gösterilir.
+
 ## Güvenlik ve gizlilik özeti
 
 - Ziyaretçi IP'si saklanmaz; tekil sayım günlük tuzlu özetle yapılır, tuz ertesi gün silinir.
@@ -137,5 +154,6 @@ Tek sunucu, Docker Compose ve Caddy. Adımlar, yedekleme ve güvenlik notları [
 
 `users` · `profiles` (kullanıcı adı, tema) · `cards` (tipe özel ayar `jsonb`) · `media` · `media_assets` · `posts` ·
 `post_media` · `post_likes` · `conversations` · `conversation_members` (teslim/okundu sıra no) · `chat_messages` ·
+`reports` · `moderation_holds` ·
 `guestbook_entries` · `connections` (şifreli token) · `activity_events` · günlük istatistik tabloları · `api_tokens` ·
 push outbox · `platform_settings` · `spring_session`. Şema `apps/api/src/main/resources/db/migration` altındadır; her değişiklik yeni bir Flyway migration'ıdır.
