@@ -101,7 +101,7 @@ export type Post = {
   body: string | null;
   media: Asset[];
   audience: PostAudience | null;
-  status: "VISIBLE" | "PENDING";
+  status: "VISIBLE" | "PENDING" | "HIDDEN";
   likeCount: number;
   replyCount: number;
   likedByMe: boolean;
@@ -168,3 +168,6 @@ export type AvatarStatus = {
   auto: { url: string; source: "SPOTIFY" | "STRAVA" | "GENERATED"; platforms: string[] } | null;
   accountUrl: string | null;
 };
+
+export type ReportTarget = "POST" | "MESSAGE" | "PROFILE" | "GUESTBOOK";
+export type ReportReason = "SPAM" | "HARASSMENT" | "HATE" | "SEXUAL" | "VIOLENCE" | "SELF_HARM" | "IMPERSONATION" | "ILLEGAL" | "OTHER";

@@ -1,4 +1,4 @@
-import { IconCheck, IconHeart, IconHeartFilled, IconLock, IconMessageCircle, IconRosetteDiscountCheckFilled, IconTrash, IconUsers } from "@tabler/icons-react-native";
+import { IconCheck, IconFlag, IconHeart, IconHeartFilled, IconLock, IconMessageCircle, IconRosetteDiscountCheckFilled, IconTrash, IconUsers } from "@tabler/icons-react-native";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Linking, Pressable, Text, View, useWindowDimensions } from "react-native";
@@ -8,6 +8,7 @@ import { useColors } from "@/lib/theme";
 import { shortTime } from "@/lib/time";
 import type { Post } from "@/lib/types";
 import { PostMedia } from "./Media";
+import { ReportSheet } from "./ReportSheet";
 import { Avatar } from "./ui";
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'\]])/g;
@@ -47,6 +48,7 @@ export function PostItem({
   const api = useApi();
   const { width } = useWindowDimensions();
   const [error, setError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
   const { author } = post;
 
   async function like() {
@@ -92,6 +94,7 @@ export function PostItem({
           {post.audience === "SIGNED_IN" ? <IconUsers size={13} color={c.ink3} accessibilityLabel="Yalnız giriş yapanlar" /> : null}
         </View>
         {post.status === "PENDING" ? <Text style={{ color: c.ink3, fontSize: 12, marginTop: 2 }}>Onay bekliyor · yalnız sen ve sayfa sahibi görüyor</Text> : null}
+        {post.status === "HIDDEN" ? <Text style={{ color: c.danger, fontSize: 12, marginTop: 2 }}>İnceleniyor · şikayetler nedeniyle şimdilik gizlendi</Text> : null}
         {post.body ? (
           <View style={{ marginTop: 4 }}>
             <LinkedText text={post.body} color={c.ink} linkColor={c.accent} />
@@ -121,14 +124,23 @@ export function PostItem({
               <Text style={{ color: c.okInk }}>Onayla</Text>
             </Pressable>
           ) : null}
+          {!post.mine && post.status === "VISIBLE" ? (
+            <Pressable onPress={() => setReporting(true)} accessibilityLabel="Şikayet et" hitSlop={8} style={{ marginLeft: "auto" }}>
+              <IconFlag size={17} color={c.ink3} />
+            </Pressable>
+          ) : null}
           {post.canDelete ? (
-            <Pressable onPress={remove} accessibilityLabel="Sil" hitSlop={8} style={{ marginLeft: "auto" }}>
+            <Pressable onPress={remove} accessibilityLabel="Sil" hitSlop={8} style={!post.mine && post.status === "VISIBLE" ? undefined : { marginLeft: "auto" }}>
               <IconTrash size={18} color={c.ink3} />
             </Pressable>
           ) : null}
         </View>
         {error ? <Text style={{ color: c.danger, marginTop: 6 }}>{error}</Text> : null}
       </View>
+      <ReportSheet
+        request={reporting ? { target: "POST", targetId: post.id, title: post.replyToId ? "Yanıtı şikayet et" : "Gönderiyi şikayet et" } : null}
+        onClose={() => setReporting(false)}
+      />
     </Pressable>
   );
 }

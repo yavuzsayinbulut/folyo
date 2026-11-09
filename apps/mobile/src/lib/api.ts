@@ -1,11 +1,15 @@
 import { useCallback } from "react";
-import { API_URL } from "./config";
+import { Alert, Linking } from "react-native";
+import { API_URL, WEB_URL } from "./config";
+import { COMMUNITY_RULES, ZERO_TOLERANCE } from "./rules";
 import { useSession } from "./session";
 
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Sunucunun makine icin verdigi neden (or. RULES_REQUIRED, SUSPENDED). */
+    public code?: string,
   ) {
     super(message);
   }
@@ -33,13 +37,16 @@ export function useApi() {
       }
       if (!response.ok) {
         let message = "Bir şeyler ters gitti, tekrar dene";
+        let code: string | undefined;
         try {
           const problem = await response.json();
           if (problem?.detail) message = problem.detail;
+          if (typeof problem?.code === "string") code = problem.code;
         } catch {
           // govde JSON degil
         }
-        throw new ApiError(response.status, message);
+        if (code === "RULES_REQUIRED" && token) askToAcceptRules(token);
+        throw new ApiError(response.status, message, code);
       }
       if (response.status === 204) return undefined as T;
       const text = await response.text();
@@ -100,4 +107,25 @@ export function useUpload() {
       }),
     [token, signOut],
   );
+}
+
+/**
+ * Ilk paylasimda sunucu topluluk kurallarinin kabulunu ister: kurallar gosterilir, kabul edilirse kaydedilir ve
+ * kisi paylasimini tekrar gonderir.
+ */
+function askToAcceptRules(token: string) {
+  const text = COMMUNITY_RULES.map((r) => `• ${r.title}: ${r.text}`).join("\n") + "\n\n" + ZERO_TOLERANCE;
+  Alert.alert("Topluluk kuralları", text, [
+    { text: "Tamamını oku", onPress: () => Linking.openURL(`${WEB_URL}/kurallar`) },
+    { text: "Vazgeç", style: "cancel" },
+    {
+      text: "Kabul ediyorum",
+      onPress: () => {
+        fetch(`${API_URL}/api/me/rules/accept`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).then(
+          (res) => res.ok && Alert.alert("Teşekkürler", "Şimdi paylaşımını tekrar gönderebilirsin."),
+          () => undefined,
+        );
+      },
+    },
+  ]);
 }

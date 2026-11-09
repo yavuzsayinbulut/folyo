@@ -8,6 +8,7 @@ import { ActionSheetIOS, Alert, AppState, FlatList, KeyboardAvoidingView, Platfo
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthImage, VideoPlayer, Viewer } from "@/components/Media";
 import { LinkedText } from "@/components/PostItem";
+import { ReportSheet, type ReportRequest } from "@/components/ReportSheet";
 import { StickerSheet, type StickerChoice } from "@/components/StickerSheet";
 import { Avatar } from "@/components/ui";
 import { ApiError, useApi, useUpload } from "@/lib/api";
@@ -50,6 +51,7 @@ export default function ChatScreen() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [stickers, setStickers] = useState(false);
   const [viewer, setViewer] = useState<Asset | null>(null);
+  const [report, setReport] = useState<ReportRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const lastRead = useRef(0);
@@ -214,6 +216,12 @@ export default function ChatScreen() {
 
   function messageMenu(m: Local) {
     if (m.failed && m.retry) return deliver(m.retry, m);
+    if (!m.mine && !m.deleted && m.id > 0) {
+      return Alert.alert("Mesaj", undefined, [
+        { text: "Şikayet et", style: "destructive", onPress: () => setReport({ target: "MESSAGE", targetId: String(m.id), title: "Mesajı şikayet et" }) },
+        { text: "Vazgeç", style: "cancel" },
+      ]);
+    }
     const canDelete = m.mine && !m.deleted && !m.pending && now - new Date(m.createdAt).getTime() < DELETE_WINDOW_MS;
     if (!canDelete) return;
     Alert.alert("Herkesten silinsin mi?", "Mesaj iki taraftan da kaldırılır.", [
@@ -253,14 +261,22 @@ export default function ChatScreen() {
 
   function menu() {
     const archive = conversation?.state === "ARCHIVED" ? "Arşivden çıkar" : "Arşivle";
-    const run = (i: number) => (i === 0 ? setState(conversation?.state === "ARCHIVED" ? "ACTIVE" : "ARCHIVED") : i === 1 ? block() : undefined);
+    const username = conversation?.other.username;
+    const reportProfile = () =>
+      username && setReport({ target: "PROFILE", targetId: username, title: `${conversation?.other.name ?? "Kişiyi"} şikayet et` });
+    const run = (i: number) =>
+      i === 0 ? setState(conversation?.state === "ARCHIVED" ? "ACTIVE" : "ARCHIVED") : i === 1 ? block() : i === 2 ? reportProfile() : undefined;
     if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions({ options: [archive, "Engelle", "Vazgeç"], destructiveButtonIndex: 1, cancelButtonIndex: 2 }, run);
+      const options = username ? [archive, "Engelle", "Şikayet et", "Vazgeç"] : [archive, "Engelle", "Vazgeç"];
+      ActionSheetIOS.showActionSheetWithOptions({ options, destructiveButtonIndex: 1, cancelButtonIndex: options.length - 1 }, (i) =>
+        i < options.length - 1 ? run(i) : undefined,
+      );
     } else {
       Alert.alert(conversation?.other.name ?? "Sohbet", undefined, [
         { text: archive, onPress: () => run(0) },
         { text: "Engelle", style: "destructive", onPress: () => run(1) },
-        { text: "Vazgeç", style: "cancel" },
+        ...(username ? [{ text: "Şikayet et", onPress: () => run(2) }] : []),
+        { text: "Vazgeç", style: "cancel" as const },
       ]);
     }
   }
@@ -473,6 +489,7 @@ export default function ChatScreen() {
         }}
       />
       <Viewer media={viewer ? [viewer] : []} index={viewer ? 0 : null} onClose={() => setViewer(null)} />
+      <ReportSheet request={report} onClose={() => setReport(null)} />
     </KeyboardAvoidingView>
   );
 }
