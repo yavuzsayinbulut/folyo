@@ -14,6 +14,8 @@ const csp = [
   `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
+  // Video sitenin kendisinden (API) oynatilir; blob: paylasmadan once secilen videonun onizlemesi icin.
+  "media-src 'self' blob:",
   "font-src 'self'",
   `connect-src 'self'${dev ? " ws: wss:" : ""}`,
   "frame-ancestors 'none'",

@@ -6,7 +6,20 @@ export function initials(name: string): string {
   return letters.toLocaleUpperCase("tr");
 }
 
+/** Kullanicinin yukledigi profil fotografi bu sitenin kendi adresinden (API) gelir. */
+function ownAsset(url: string | null): url is string {
+  return !!url && url.startsWith("/api/public/assets/");
+}
+
 export function Avatar({ name, url, size = 64 }: { name: string; url: string | null; size?: number }) {
+  if (ownAsset(url)) {
+    // Kucuk gosterimlerde 128 px kopya yeterli; buyuklerde 512 px.
+    const src = size <= 64 ? url.replace(/\/avatar$/, "/small") : url;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt="" width={size} height={size} className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} loading="lazy" />
+    );
+  }
   // Google/GitHub avatari sunucudan gecer; taninmayan adresler yerine bas harfler gosterilir.
   if (proxiable(url)) {
     return <RemoteImage src={url} size={size} className="rounded-full object-cover shrink-0" />;

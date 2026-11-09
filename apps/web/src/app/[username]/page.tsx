@@ -3,21 +3,28 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { IconClock, IconMapPin } from "@tabler/icons-react";
+import { IconLock } from "@tabler/icons-react";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { Avatar } from "@/components/Avatar";
 import { BentoGrid } from "@/components/CardTile";
+import { ContactBox } from "@/components/ContactBox";
 import { Guestbook } from "@/components/Guestbook";
 import { LocalTime } from "@/components/LocalTime";
+import { PostFeed } from "@/components/posts/PostFeed";
 import { VisitTracker } from "@/components/VisitTracker";
-import { getActivity, getGuestbook, getPublicPage } from "@/lib/server-api";
+import { getActivity, getGuestbook, getMe, getPosts, getPublicPage } from "@/lib/server-api";
 import { platformFor } from "@/lib/platforms";
 import { themeProps } from "@/lib/themes";
 
 export async function generateMetadata({ params }: PageProps<"/[username]">): Promise<Metadata> {
   const { username } = await params;
-  const page = await getPublicPage(username);
-  // Sayfa akisi baslamadan 404: metadata'da cagrilan notFound() durum kodunu da 404 yapar.
-  if (!page) notFound();
+  // Metadata once anonim bakisla uretilir: gizli sayfanin adi/biyografisi baglanti onizlemesine sizmaz.
+  // Anonim bakis bulamazsa ("yalniz ben" sayfasi) oturumdaki kisiyle tekrar sorulur; sahibi kendi sayfasini acabilir.
+  // Cerezsiz bot ve onizleyiciler icin olmayan sayfa yine akistan once 404 doner.
+  const result = (await getPublicPage(username, false)) ?? (await getPublicPage(username, true));
+  if (!result) notFound();
+  if (result.kind === "restricted") return { title: "Gizli sayfa", robots: { index: false, follow: false } };
+  const page = result.page;
   const description = page.bio ?? `${page.displayName} folyo sayfası`;
   return {
     title: page.displayName,
@@ -40,12 +47,19 @@ const MAIN = "mx-auto w-full max-w-3xl px-4 py-10 sm:py-14";
 
 async function Profile({ params }: { params: PageProps<"/[username]">["params"] }) {
   const { username } = await params;
-  const [page, entries, activity] = await Promise.all([
-    getPublicPage(username),
-    getGuestbook(username),
-    getActivity(username),
+  const result = await getPublicPage(username, true);
+  if (!result) notFound();
+  if (result.kind === "restricted") return <RestrictedNotice username={result.restricted.username} requirement={result.restricted.requirement} />;
+  const page = result.page;
+  const { interactions } = page;
+  const postsPath = `/api/public/profiles/${encodeURIComponent(page.username)}/posts`;
+  const [entries, activity, posts, me] = await Promise.all([
+    interactions.guestbookVisible ? getGuestbook(username) : Promise.resolve([]),
+    interactions.activityVisible ? getActivity(username) : Promise.resolve([]),
+    getPosts(postsPath),
+    getMe(),
   ]);
-  if (!page) notFound();
+  const owner = interactions.message === "OWNER";
 
   // Ust siradaki ikon satiri: link kartlarindan taninan platformlar (tekrarsiz).
   const socials = page.cards
@@ -121,8 +135,33 @@ async function Profile({ params }: { params: PageProps<"/[username]">["params"] 
         )}
 
         <div className="mt-8 flex flex-col gap-8">
-          <ActivityFeed events={activity} />
-          <Guestbook username={page.username} initialEntries={entries} />
+          {(posts.posts.length > 0 || owner) && (
+            <section aria-labelledby="posts">
+              <h2 id="posts" className="mb-3 font-medium">
+                Gönderiler
+              </h2>
+              <PostFeed
+                initial={posts}
+                source={postsPath}
+                signedIn={!!me}
+                canPost={owner}
+                empty="Henüz bir şey paylaşmadın. Paylaştıkların burada ve Keşfet'te görünür."
+              />
+            </section>
+          )}
+          {interactions.message !== "CLOSED" && interactions.message !== "OWNER" && (
+            <ContactBox username={page.username} displayName={page.displayName} interaction={interactions.message} />
+          )}
+          {interactions.activityVisible && <ActivityFeed events={activity} />}
+          {(interactions.guestbookVisible || interactions.comment !== "CLOSED") && (
+            <Guestbook
+              username={page.username}
+              initialEntries={entries}
+              entriesVisible={interactions.guestbookVisible}
+              interaction={interactions.comment}
+              needsApproval={interactions.commentNeedsApproval}
+            />
+          )}
         </div>
 
         <footer className="mt-10 text-center text-sm text-ink-3">
@@ -132,6 +171,31 @@ async function Profile({ params }: { params: PageProps<"/[username]">["params"] 
         </footer>
       </main>
     </div>
+  );
+}
+
+/** Sayfa yalniz giris yapanlara ya da dogrulanmis hesaplara acik: ne yapilmasi gerektigi soylenir. */
+function RestrictedNotice({ username, requirement }: { username: string; requirement: "SIGNED_IN" | "VERIFIED" }) {
+  const next = encodeURIComponent(`/${username}`);
+  const signIn = requirement === "SIGNED_IN";
+  return (
+    <main className={`${MAIN} flex flex-1 flex-col items-center justify-center text-center`}>
+      <span className="inline-flex size-14 items-center justify-center rounded-2xl bg-surface-2 text-ink-2">
+        <IconLock size={26} aria-hidden="true" />
+      </span>
+      <h1 className="mt-5 text-2xl font-semibold tracking-tight">Bu sayfa herkese açık değil</h1>
+      <p className="mt-2 max-w-sm text-ink-2">
+        {signIn
+          ? "Sayfa sahibi sayfasını yalnız giriş yapmış kullanıcılara açtı."
+          : "Sayfa sahibi sayfasını yalnız hesabı doğrulanmış kullanıcılara açtı."}
+      </p>
+      <Link
+        href={signIn ? `/login?next=${next}` : `/hesap/dogrulama?next=${next}`}
+        className="mt-6 inline-flex h-10 items-center rounded-xl bg-accent px-4 text-sm font-medium text-on-accent"
+      >
+        {signIn ? "Giriş yap" : "Hesabını doğrula"}
+      </Link>
+    </main>
   );
 }
 

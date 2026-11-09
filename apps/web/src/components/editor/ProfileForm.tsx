@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/client-api";
-import type { Profile, Visibility } from "@/lib/types";
+import type { Profile } from "@/lib/types";
 
 const field = "h-10 w-full rounded-xl border border-line-strong bg-bg px-3 outline-none focus:border-accent";
 
@@ -13,7 +13,6 @@ export function ProfileForm({ profile, onSaved }: { profile: Profile; onSaved: (
     location: profile.location ?? "",
     timezone: profile.timezone ?? "",
     status: profile.status ?? "",
-    visibility: profile.visibility,
   });
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -75,28 +74,16 @@ export function ProfileForm({ profile, onSaved }: { profile: Profile; onSaved: (
             ))}
           </select>
         </label>
-        <fieldset className="sm:col-span-2 flex flex-col gap-1 text-sm">
-          <legend className="mb-1">Görünürlük</legend>
-          <div className="flex gap-2">
-            {(
-              [
-                ["PUBLIC", "Herkese açık"],
-                ["UNLISTED", "Yalnız linki bilen"],
-              ] as [Visibility, string][]
-            ).map(([value, label]) => (
-              <label key={value} className={`flex-1 cursor-pointer rounded-xl border px-3 py-2 text-center ${form.visibility === value ? "border-accent bg-accent-soft text-accent-ink" : "border-line-strong"}`}>
-                <input type="radio" name="visibility" value={value} checked={form.visibility === value} onChange={() => set("visibility", value)} className="sr-only" />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
       </div>
       <div className="mt-4 flex items-center gap-3">
         <button disabled={saving} className="h-10 rounded-xl bg-accent px-4 text-on-accent text-sm font-medium disabled:opacity-60">
           Kaydet
         </button>
-        {message && <span className={`text-sm ${message.ok ? "text-ok-ink" : "text-danger"}`}>{message.text}</span>}
+        {message && (
+          <span role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-ok-ink" : "text-danger"}`}>
+            {message.text}
+          </span>
+        )}
       </div>
     </form>
   );
