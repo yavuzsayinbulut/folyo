@@ -31,9 +31,14 @@ public class AccountService {
     private final MediaRepository media;
     private final MediaStorage storage;
     private final ObjectProvider<FindByIndexNameSessionRepository<? extends Session>> sessions;
+    private final app.folyo.asset.AssetRepository assets;
+    private final app.folyo.asset.AssetService assetService;
 
     public AccountService(UserRepository users, MediaRepository media, MediaStorage storage,
-            ObjectProvider<FindByIndexNameSessionRepository<? extends Session>> sessions) {
+            ObjectProvider<FindByIndexNameSessionRepository<? extends Session>> sessions,
+            app.folyo.asset.AssetRepository assets, app.folyo.asset.AssetService assetService) {
+        this.assets = assets;
+        this.assetService = assetService;
         this.users = users;
         this.media = media;
         this.storage = storage;
@@ -45,8 +50,11 @@ public class AccountService {
         User user = users.lockById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hesap bulunamadı"));
         List<String> files = media.findStorageKeysOfUser(userId);
+        // Gonderi, sohbet, profil fotografi ve sticker dosyalari: kayitlar cascade ile gider, dosyalar commit'ten sonra.
+        List<app.folyo.asset.Asset> uploads = assets.ownedBy(userId);
         users.delete(user);
         users.flush();
+        assetService.deleteWithFiles(uploads);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {

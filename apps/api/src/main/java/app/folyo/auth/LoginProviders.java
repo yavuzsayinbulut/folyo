@@ -49,9 +49,10 @@ public record LoginProviders(FolyoProperties.OAuthClient google, FolyoProperties
                         .redirectUri(redirect).build());
             }
             if (configured(providers.github())) {
+                // user:email: gizli e-posta dahil birincil ve dogrulanmis e-postayi okumak icin (GitHubEmailUserService).
                 registrations.add(CommonOAuth2Provider.GITHUB.getBuilder("github")
                         .clientId(providers.github().clientId()).clientSecret(providers.github().clientSecret())
-                        .redirectUri(redirect).build());
+                        .scope("read:user", "user:email").redirectUri(redirect).build());
             }
             return new InMemoryClientRegistrationRepository(registrations);
         }

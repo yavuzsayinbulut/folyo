@@ -33,10 +33,12 @@ public class OAuthLoginSuccessHandler implements AuthenticationSuccessHandler {
         Map<String, Object> attributes = token.getPrincipal().getAttributes();
 
         User user = switch (provider) {
+            // Google OIDC "email_verified" der; GitHub icin GitHubEmailUserService ekler.
             case "google" -> userService.signIn(provider, text(attributes, "sub"), text(attributes, "email"),
-                    text(attributes, "name"), text(attributes, "picture"));
+                    verified(attributes), text(attributes, "name"), text(attributes, "picture"));
             case "github" -> userService.signIn(provider, text(attributes, "id"), text(attributes, "email"),
-                    firstPresent(text(attributes, "name"), text(attributes, "login")), text(attributes, "avatar_url"));
+                    verified(attributes), firstPresent(text(attributes, "name"), text(attributes, "login")),
+                    text(attributes, "avatar_url"));
             default -> userService.signIn(provider, token.getName(), null, token.getName(), null);
         };
 
@@ -48,6 +50,11 @@ public class OAuthLoginSuccessHandler implements AuthenticationSuccessHandler {
     private static String text(Map<String, Object> attributes, String key) {
         Object value = attributes.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private static boolean verified(Map<String, Object> attributes) {
+        Object value = attributes.get("email_verified");
+        return Boolean.TRUE.equals(value) || "true".equals(String.valueOf(value));
     }
 
     private static String firstPresent(String first, String second) {
