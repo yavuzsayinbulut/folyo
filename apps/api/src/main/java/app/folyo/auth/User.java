@@ -46,6 +46,22 @@ public class User {
     @Column(name = "avatar_asset_id", insertable = false, updatable = false)
     private java.util.UUID avatarAssetId;
 
+    /** Giris saglayicisinin (Google/GitHub) verdigi fotograf; gorunen fotograf avatarUrl'dir. */
+    @Column(name = "provider_avatar_url", insertable = false, updatable = false)
+    private String providerAvatarUrl;
+
+    @Column(name = "auto_avatar_asset_id", insertable = false, updatable = false)
+    private java.util.UUID autoAvatarAssetId;
+
+    @Column(name = "auto_avatar_source", insertable = false, updatable = false)
+    private String autoAvatarSource;
+
+    @Column(name = "auto_avatar_key", insertable = false, updatable = false)
+    private String autoAvatarKey;
+
+    @Column(name = "auto_avatar_retry_at", insertable = false, updatable = false)
+    private java.time.Instant autoAvatarRetryAt;
+
     @Column(name = "last_seen_at", insertable = false, updatable = false)
     private Instant lastSeenAt;
 
@@ -88,6 +104,26 @@ public class User {
 
     public Instant getPhoneVerifiedAt() {
         return phoneVerifiedAt;
+    }
+
+    public String getProviderAvatarUrl() {
+        return providerAvatarUrl;
+    }
+
+    public java.util.UUID getAutoAvatarAssetId() {
+        return autoAvatarAssetId;
+    }
+
+    public String getAutoAvatarSource() {
+        return autoAvatarSource;
+    }
+
+    public String getAutoAvatarKey() {
+        return autoAvatarKey;
+    }
+
+    public java.time.Instant getAutoAvatarRetryAt() {
+        return autoAvatarRetryAt;
     }
 
     public java.util.UUID getAvatarAssetId() {

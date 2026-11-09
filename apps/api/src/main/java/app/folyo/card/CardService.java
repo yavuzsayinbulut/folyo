@@ -1,6 +1,7 @@
 package app.folyo.card;
 
 import app.folyo.access.Audience;
+import app.folyo.avatar.AvatarInputsChanged;
 import app.folyo.connection.ConnectionProvider;
 import app.folyo.connection.ConnectionService;
 import app.folyo.media.MediaRepository;
@@ -74,6 +75,7 @@ public class CardService {
         CardSize effectiveSize = size != null ? size : defaultSize(type);
         Card card = cards.save(new Card(profile.getId(), type, position, effectiveSize, normalizeConfig(type, rawConfig)));
         announceIfActivitySource(card);
+        events.publishEvent(new AvatarInputsChanged(userId));
         return card;
     }
 
@@ -97,6 +99,7 @@ public class CardService {
         }
         if (changes.visible() != null || changes.audience() != null || changes.config() != null) {
             announceIfActivitySource(card);
+            events.publishEvent(new AvatarInputsChanged(userId));
         }
         return card;
     }
@@ -116,6 +119,7 @@ public class CardService {
         }
         cards.delete(card);
         announceIfActivitySource(card);
+        events.publishEvent(new AvatarInputsChanged(userId));
     }
 
 
@@ -141,6 +145,8 @@ public class CardService {
         for (int i = 0; i < orderedIds.size(); i++) {
             byId.get(orderedIds.get(i)).moveTo(i);
         }
+        // Siralama otomatik gorselde hangi platformun once geldigini belirler.
+        events.publishEvent(new AvatarInputsChanged(userId));
         return orderedIds.stream().map(byId::get).toList();
     }
 

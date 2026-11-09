@@ -131,6 +131,7 @@ public class ConnectionService {
                     grant.refreshToken() == null ? null : cipher.encrypt(grant.refreshToken()));
             connections.save(connection);
         });
+        events.publishEvent(new app.folyo.avatar.AvatarInputsChanged(userId));
     }
 
     public void disconnect(UUID userId, ConnectionProvider provider) {
@@ -139,6 +140,7 @@ public class ConnectionService {
                 .ifPresent(connections::delete));
         // Onbellekteki canli veri ve aktivite akisi hemen temizlenir; sonraki senkronu beklemez.
         events.publishEvent(new ConnectionRemoved(profile.getId(), provider));
+        events.publishEvent(new app.folyo.avatar.AvatarInputsChanged(userId));
     }
 
     /** Gecerli erisim token'ini doner; suresi dolmak uzereyse once yeniler. */

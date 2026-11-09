@@ -121,7 +121,7 @@ public class AssetService {
         String url = AssetView.url(asset.id(), "avatar");
         UUID previous = transaction.execute(status -> {
             UUID old = users.lockById(userId).map(u -> u.getAvatarAssetId()).orElse(null);
-            users.setAvatar(userId, asset.id(), url);
+            users.setUploadedAvatar(userId, asset.id());
             if (old != null) {
                 deleteAfterCommit(assets.findAll(List.of(old)));
                 assets.delete(List.of(old));
@@ -132,16 +132,44 @@ public class AssetService {
         return url;
     }
 
-    /** Ozel fotograf kaldirilir; bir sonraki giriste Google/GitHub fotografi geri gelir. */
+    /** Ozel fotograf kaldirilir; yerine otomatik gorsel (ya da giris hesabinin fotografi) gelir. */
     public void removeAvatar(UUID userId) {
         transaction.executeWithoutResult(status -> {
             UUID old = users.lockById(userId).map(u -> u.getAvatarAssetId()).orElse(null);
-            users.setAvatar(userId, null, null);
+            users.setUploadedAvatar(userId, null);
             if (old != null) {
                 deleteAfterCommit(assets.findAll(List.of(old)));
                 assets.delete(List.of(old));
             }
         });
+    }
+
+    /**
+     * Otomatik profil gorselini kaydeder (bytes null: kaldir). Ayni girdilerle (key) es zamanli ikinci bir hesap
+     * gelirse kaybeden kendi dosyasini siler; eski gorsel commit sonrasi depodan silinir.
+     *
+     * @return gorsel degistiyse true
+     */
+    public boolean setAutoAvatar(UUID userId, byte[] bytes, String source, String key, Instant retryAt) {
+        Asset created = bytes == null ? null : storeImage(userId, AssetKind.AVATAR, bytes, AVATAR, Instant.now());
+        Boolean changed = transaction.execute(status -> {
+            var user = users.lockById(userId).orElse(null);
+            if (user == null || (key.equals(user.getAutoAvatarKey()) && user.getAutoAvatarRetryAt() == null)) {
+                if (created != null) {
+                    deleteAfterCommit(List.of(created));
+                    assets.delete(List.of(created.id()));
+                }
+                return false;
+            }
+            UUID old = user.getAutoAvatarAssetId();
+            users.setAutoAvatar(userId, created == null ? null : created.id(), created == null ? null : source, key, retryAt);
+            if (old != null) {
+                deleteAfterCommit(assets.findAll(List.of(old)));
+                assets.delete(List.of(old));
+            }
+            return true;
+        });
+        return Boolean.TRUE.equals(changed);
     }
 
     /** Kendi sticker'in: seffaf PNG/WebP, en fazla 1 MB ve 1024 px. */

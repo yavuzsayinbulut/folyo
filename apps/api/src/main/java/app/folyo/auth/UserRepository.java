@@ -24,11 +24,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      */
     @Modifying
     @Query(nativeQuery = true, value = """
-            insert into users (id, auth_provider, auth_subject, email, name, avatar_url, email_verified_at)
-            values (:id, :provider, :subject, :email, :name, :avatarUrl, case when :emailVerified then now() end)
+            insert into users (id, auth_provider, auth_subject, email, name, avatar_url, provider_avatar_url, email_verified_at)
+            values (:id, :provider, :subject, :email, :name, :avatarUrl, :avatarUrl, case when :emailVerified then now() end)
             on conflict (auth_provider, auth_subject)
             do update set name = excluded.name,
-                avatar_url = case when users.avatar_asset_id is not null then users.avatar_url else excluded.avatar_url end,
+                provider_avatar_url = excluded.provider_avatar_url,
+                avatar_url = case when users.avatar_asset_id is not null or users.auto_avatar_asset_id is not null
+                    then users.avatar_url else excluded.provider_avatar_url end,
                 email = case when users.email_verified_at is not null then users.email
                     else coalesce(excluded.email, users.email) end,
                 email_verified_at = case
@@ -39,10 +41,44 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     void upsert(UUID id, String provider, String subject, String email, boolean emailVerified, String name,
             String avatarUrl);
 
-    /** Ozel profil fotografi: adres avatar_url'ye yazilir, boylece adin gorundugu her yerde ayni fotograf cikar. */
+    /**
+     * Yuklenen profil fotografi (null: kaldirildi). Gorunen adres avatar_url'ye yazilir, boylece adin gorundugu her yerde
+     * ayni fotograf cikar: yuklenen > otomatik > giris hesabinin fotografi.
+     */
     @Modifying(clearAutomatically = true)
-    @Query(nativeQuery = true, value = "update users set avatar_asset_id = :assetId, avatar_url = :url where id = :id")
-    void setAvatar(UUID id, UUID assetId, String url);
+    @Query(nativeQuery = true, value = """
+            update users set avatar_asset_id = :assetId, avatar_url = case
+                when cast(:assetId as uuid) is not null then '/api/public/assets/' || cast(:assetId as uuid) || '/avatar'
+                when auto_avatar_asset_id is not null then '/api/public/assets/' || auto_avatar_asset_id || '/avatar'
+                else provider_avatar_url end
+            where id = :id""")
+    void setUploadedAvatar(UUID id, UUID assetId);
+
+    /** Otomatik gorsel (null: yok). Yuklenen fotograf varsa gorunen adres degismez. */
+    @Modifying(clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            update users set auto_avatar_asset_id = :assetId, auto_avatar_source = :source, auto_avatar_key = :key,
+                auto_avatar_retry_at = :retryAt,
+                avatar_url = case
+                    when avatar_asset_id is not null then avatar_url
+                    when cast(:assetId as uuid) is not null then '/api/public/assets/' || cast(:assetId as uuid) || '/avatar'
+                    else provider_avatar_url end
+            where id = :id""")
+    void setAutoAvatar(UUID id, UUID assetId, String source, String key, java.time.Instant retryAt);
+
+    /** Gorsel degismeden girdiler/yeniden deneme zamani guncellenir. */
+    @Modifying(clearAutomatically = true)
+    @Query(nativeQuery = true, value = "update users set auto_avatar_key = :key, auto_avatar_retry_at = :retryAt where id = :id")
+    void markAutoAvatar(UUID id, String key, java.time.Instant retryAt);
+
+    /** Otomatik gorseli hic hesaplanmamis, eski surumle hesaplanmis ya da yeniden deneme zamani gelmis kullanicilar. */
+    @Query(nativeQuery = true, value = """
+            select u.id from users u
+            where (u.auto_avatar_key is null or u.auto_avatar_key not like :currentKeys or u.auto_avatar_retry_at < now())
+              and exists (select 1 from profiles p where p.user_id = u.id)
+            order by u.auto_avatar_retry_at nulls first
+            limit :limit""")
+    java.util.List<UUID> autoAvatarPending(String currentKeys, int limit);
 
     @Modifying(clearAutomatically = true)
     @Query(nativeQuery = true, value = "update users set role = :role where id = :id")

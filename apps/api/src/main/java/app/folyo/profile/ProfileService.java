@@ -1,9 +1,11 @@
 package app.folyo.profile;
 
+import app.folyo.avatar.AvatarInputsChanged;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +15,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProfileService {
 
     private final ProfileRepository profiles;
+    private final ApplicationEventPublisher events;
 
-    public ProfileService(ProfileRepository profiles) {
+    public ProfileService(ProfileRepository profiles, ApplicationEventPublisher events) {
         this.profiles = profiles;
+        this.events = events;
     }
 
     public record Availability(boolean available, String reason) {
@@ -54,7 +58,9 @@ public class ProfileService {
         if (profiles.existsByUsername(username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bu kullanıcı adı alınmış");
         }
-        return profiles.saveAndFlush(new Profile(userId, username, displayName.strip()));
+        Profile profile = profiles.saveAndFlush(new Profile(userId, username, displayName.strip()));
+        events.publishEvent(new AvatarInputsChanged(userId));
+        return profile;
     }
 
     @Transactional
@@ -63,6 +69,8 @@ public class ProfileService {
         profile.updateDetails(details.displayName().strip(), blankToNull(details.bio()),
                 blankToNull(details.location()), validTimezone(details.timezone()), blankToNull(details.status()),
                 details.visibility() == null ? profile.getVisibility() : details.visibility());
+        // Gorunen ad otomatik gorseldeki bas harfleri belirler.
+        events.publishEvent(new AvatarInputsChanged(userId));
         return profile;
     }
 

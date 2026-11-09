@@ -111,6 +111,27 @@ public class StravaClient {
         };
     }
 
+    /**
+     * Sporcunun profil fotografi; fotografi olmayan hesapta Strava goreli bir yer tutucu yolu doner, o zaman null.
+     */
+    public String profileImage(String accessToken) {
+        JsonNode athlete;
+        try {
+            athlete = http.get().uri(API + "/athlete")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .retrieve().body(JsonNode.class);
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 401) {
+                throw new AuthorizationRevokedException("Strava erişim izni geçersiz");
+            }
+            throw new ProviderUnavailableException("Strava yanıt vermedi", e);
+        } catch (RestClientException e) {
+            throw new ProviderUnavailableException("Strava yanıt vermedi", e);
+        }
+        String url = athlete == null ? null : Json.text(athlete, "profile");
+        return url != null && url.startsWith("https://") ? url : null;
+    }
+
     private List<LiveData.Activity> activities(String accessToken) {
         JsonNode list;
         try {

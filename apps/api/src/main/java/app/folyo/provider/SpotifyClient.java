@@ -80,6 +80,21 @@ public class SpotifyClient {
         return new LiveData.Track("SPOTIFY", false, null, null, null, null, null, profileUrl);
     }
 
+    /** Hesabin profil fotografi (en buyuk boyut); yoksa null. */
+    public String profileImage(String accessToken) {
+        JsonNode images = call(accessToken, "/me").path("images");
+        String best = null;
+        long bestWidth = -1;
+        for (JsonNode image : images) {
+            long width = image.path("width").asLong(0);
+            if (Json.text(image, "url") != null && width > bestWidth) {
+                best = Json.text(image, "url");
+                bestWidth = width;
+            }
+        }
+        return best;
+    }
+
     private static LiveData.Track track(JsonNode item, boolean playing, Instant playedAt, String profileUrl) {
         JsonNode artists = item.path("artists");
         String artist = artists.isArray() && !artists.isEmpty() ? Json.text(artists.get(0), "name") : null;
