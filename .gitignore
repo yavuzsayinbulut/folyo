@@ -1,0 +1,32 @@
+# Isletim sistemi ve editor
+.DS_Store
+.idea/
+.vscode/
+*.iml
+*.log
+
+# Gizli degerler: yalniz bos .env.example dosyalari repoya girer
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.keystore
+
+# Bagimliliklar ve derleme ciktilari (uygulamalarin kendi .gitignore'lari da var)
+node_modules/
+target/
+.next/
+.expo/
+dist/
+
+# Yerel araclar ve yedekler
+.claude/
+deploy/backups/
+
+# Kodlama ajanlarinin talimat dosyalari (next dev / create-expo-app uretir)
+AGENTS.md
+CLAUDE.md
