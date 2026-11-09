@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+:root {
+  --card-radius: 16px;
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --surface-2: #f1efe8;
+  --line: rgba(31, 30, 28, 0.09);
+  --line-strong: rgba(31, 30, 28, 0.18);
+  --ink: #1f1e1c;
+  --ink-2: #5f5e5a;
+  --ink-3: #888780;
+  --accent: #534ab7;
+  --accent-soft: #eeedfe;
+  --accent-ink: #3c3489;
+  --on-accent: #ffffff;
+  --ok-soft: #eaf3de;
+  --ok-ink: #27500a;
+  --danger: #a32d2d;
+  /* Grafik isareti: dataviz dogrulayicisindan gecti (acik: #534ab7, koyu: #8b84e6). */
+  --chart: #534ab7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413;
+    --surface: #1f1f1d;
+    --surface-2: #2a2a27;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.18);
+    --ink: #f1efe8;
+    --ink-2: #b4b2a9;
+    --ink-3: #888780;
+    --accent: #afa9ec;
+    --accent-soft: #26215c;
+    --accent-ink: #cecbf6;
+    --on-accent: #26215c;
+    --ok-soft: #173404;
+    --ok-ink: #c0dd97;
+    --danger: #f09595;
+    --chart: #8b84e6;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-on-accent: var(--on-accent);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-ink: var(--ok-ink);
+  --color-danger: var(--danger);
+  --color-chart: var(--chart);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Platform tonlari: acik temada acik zemin + koyu yazi, koyu temada tersi. */
+.tone-gray { --tone-bg: #f1efe8; --tone-ink: #2c2c2a; }
+.tone-green { --tone-bg: #eaf3de; --tone-ink: #27500a; }
+.tone-pink { --tone-bg: #fbeaf0; --tone-ink: #72243e; }
+.tone-blue { --tone-bg: #e6f1fb; --tone-ink: #0c447c; }
+.tone-coral { --tone-bg: #faece7; --tone-ink: #712b13; }
+.tone-amber { --tone-bg: #faeeda; --tone-ink: #633806; }
+.tone-purple { --tone-bg: #eeedfe; --tone-ink: #3c3489; }
+.tone-teal { --tone-bg: #e1f5ee; --tone-ink: #085041; }
+.tone-red { --tone-bg: #fcebeb; --tone-ink: #791f1f; }
+
+/* Koyu tonlar: cihaz koyu moddayken (acik temali bir sayfanin icinde degilse) ve her zaman koyu temalarda. */
+@media (prefers-color-scheme: dark) {
+  .tone-gray:not([data-scheme="light"] *) { --tone-bg: #2c2c2a; --tone-ink: #d3d1c7; }
+  .tone-green:not([data-scheme="light"] *) { --tone-bg: #173404; --tone-ink: #c0dd97; }
+  .tone-pink:not([data-scheme="light"] *) { --tone-bg: #4b1528; --tone-ink: #f4c0d1; }
+  .tone-blue:not([data-scheme="light"] *) { --tone-bg: #042c53; --tone-ink: #b5d4f4; }
+  .tone-coral:not([data-scheme="light"] *) { --tone-bg: #4a1b0c; --tone-ink: #f5c4b3; }
+  .tone-amber:not([data-scheme="light"] *) { --tone-bg: #412402; --tone-ink: #fac775; }
+  .tone-purple:not([data-scheme="light"] *) { --tone-bg: #26215c; --tone-ink: #cecbf6; }
+  .tone-teal:not([data-scheme="light"] *) { --tone-bg: #04342c; --tone-ink: #9fe1cb; }
+  .tone-red:not([data-scheme="light"] *) { --tone-bg: #501313; --tone-ink: #f7c1c1; }
+}
+[data-scheme="dark"] {
+  .tone-gray { --tone-bg: #2c2c2a; --tone-ink: #d3d1c7; }
+  .tone-green { --tone-bg: #173404; --tone-ink: #c0dd97; }
+  .tone-pink { --tone-bg: #4b1528; --tone-ink: #f4c0d1; }
+  .tone-blue { --tone-bg: #042c53; --tone-ink: #b5d4f4; }
+  .tone-coral { --tone-bg: #4a1b0c; --tone-ink: #f5c4b3; }
+  .tone-amber { --tone-bg: #412402; --tone-ink: #fac775; }
+  .tone-purple { --tone-bg: #26215c; --tone-ink: #cecbf6; }
+  .tone-teal { --tone-bg: #04342c; --tone-ink: #9fe1cb; }
+  .tone-red { --tone-bg: #501313; --tone-ink: #f7c1c1; }
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+/* ---------- Ziyaretci sayfasi temalari ---------- */
+.theme-root {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body, var(--font-geist-sans)), system-ui, sans-serif;
+}
+.theme-root :is(h1, h2, h3, .font-display) {
+  font-family: var(--font-display, var(--font-body, var(--font-geist-sans))), system-ui, sans-serif;
+}
+
+[data-theme="FRIENDLY"] {
+  --bg: #fff6ec; --surface: #ffffff; --surface-2: #ffeedc;
+  --line: rgba(122, 62, 20, 0.1); --line-strong: rgba(122, 62, 20, 0.22);
+  --ink: #2d1d12; --ink-2: #6e5444; --ink-3: #a08673;
+  --accent: #e8590c; --accent-soft: #ffe6d2; --accent-ink: #9c3b07; --on-accent: #ffffff;
+  --ok-soft: #e7f6e5; --ok-ink: #25602a; --danger: #b42318; --chart: #e8590c;
+  --card-radius: 28px;
+  --font-body: var(--font-nunito); --font-display: var(--font-nunito);
+}
+[data-theme="CORPORATE"] {
+  --bg: #f3f5f8; --surface: #ffffff; --surface-2: #eaeef3;
+  --line: rgba(15, 27, 45, 0.1); --line-strong: rgba(15, 27, 45, 0.2);
+  --ink: #0f1b2d; --ink-2: #4a5568; --ink-3: #7a8699;
+  --accent: #1e40af; --accent-soft: #e0e7ff; --accent-ink: #1e3a8a; --on-accent: #ffffff;
+  --ok-soft: #e6f4ea; --ok-ink: #1e6b34; --danger: #b42318; --chart: #1e40af;
+  --card-radius: 8px;
+  --font-body: var(--font-plex); --font-display: var(--font-plex);
+}
+[data-theme="CORPORATE"] [class*="tone-"] { --tone-bg: #eaeef3; --tone-ink: #1e3a8a; }
+[data-theme="MINIMAL"] {
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f5f5;
+  --line: rgba(0, 0, 0, 0.09); --line-strong: rgba(0, 0, 0, 0.2);
+  --ink: #111111; --ink-2: #525252; --ink-3: #8a8a8a;
+  --accent: #111111; --accent-soft: #f0f0f0; --accent-ink: #111111; --on-accent: #ffffff;
+  --ok-soft: #f0f0f0; --ok-ink: #111111; --danger: #b42318; --chart: #111111;
+  --card-radius: 12px;
+}
+[data-theme="MINIMAL"] [class*="tone-"] { --tone-bg: #f2f2f2; --tone-ink: #111111; }
+[data-theme="NIGHT"] {
+  --bg: #0b0d12; --surface: #141821; --surface-2: #1c2130;
+  --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.18);
+  --ink: #e9edf5; --ink-2: #aab3c5; --ink-3: #7d879b;
+  --accent: #8ea2ff; --accent-soft: #1f2747; --accent-ink: #c9d2ff; --on-accent: #0b0d12;
+  --ok-soft: #14301f; --ok-ink: #9fe0b2; --danger: #ff8a80; --chart: #8ea2ff;
+  --card-radius: 18px;
+  color-scheme: dark;
+}
+[data-theme="EDITORIAL"] {
+  --bg: #f8f4ec; --surface: #fffdf8; --surface-2: #f0e9dc;
+  --line: rgba(60, 40, 20, 0.12); --line-strong: rgba(60, 40, 20, 0.24);
+  --ink: #2a2118; --ink-2: #5e5043; --ink-3: #8d7e6e;
+  --accent: #9a3412; --accent-soft: #f6e3d6; --accent-ink: #7c2d12; --on-accent: #ffffff;
+  --ok-soft: #e9f1e1; --ok-ink: #3c5a1e; --danger: #a12a1b; --chart: #9a3412;
+  --card-radius: 4px;
+  --font-display: var(--font-fraunces);
+}
+/* Acik temalar cihaz koyu moddayken de acik kalir. */
+[data-scheme="light"] { color-scheme: light; }
+
+/* Kullanicinin sectigi vurgu rengi temanin kendi vurgusunu ezer (degerler themeProps'tan gelir). */
+[data-accent] { --accent: var(--al); --accent-soft: var(--al-soft); --accent-ink: var(--al-ink); --on-accent: var(--al-on); --chart: var(--al); }
+[data-accent][data-scheme="dark"] { --accent: var(--ad); --accent-soft: var(--ad-soft); --accent-ink: var(--ad-ink); --on-accent: var(--ad-on); --chart: var(--ad); }
+@media (prefers-color-scheme: dark) {
+  [data-accent]:not([data-scheme]) { --accent: var(--ad); --accent-soft: var(--ad-soft); --accent-ink: var(--ad-ink); --on-accent: var(--ad-on); --chart: var(--ad); }
+}
