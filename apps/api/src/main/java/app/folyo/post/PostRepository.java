@@ -50,6 +50,73 @@ class PostRepository {
              or (p.audience in (:audiences) and pr.profile_audience in (:audiences) and p.status = 'VISIBLE'))
             """;
 
+    /** Akislarda: bakan kisiyle yazar arasinda iki yonden biri engellediyse gonderi gosterilmez. */
+    private static final String NOT_BLOCKED = """
+            (cast(:viewer as uuid) is null or not exists (select 1 from user_blocks b
+              where (b.owner_user_id = cast(:viewer as uuid) and b.blocked_user_id = p.author_user_id)
+                 or (b.owner_user_id = p.author_user_id and b.blocked_user_id = cast(:viewer as uuid))))
+            """;
+
+    /** Kesfet'e girebilen gonderi: ust duzey, herkese gorunur, kitlesi ve sayfasi bakan kisiye acik, yazari dogrulanmis. */
+    private static final String EXPLORABLE = """
+            p.reply_to_id is null and p.status = 'VISIBLE'
+             and p.audience in (:audiences) and pr.profile_audience in (:audiences)
+             and (not :requireEmail or u.email_verified_at is not null)
+             and (not :requirePhone or u.phone_verified_at is not null)
+             and\s""" + NOT_BLOCKED;
+
+    /**
+     * "Senin icin": en yeni adaylar puanlanir. Puan etkilesim / yas^gravity; bakan kisinin begendigi, yanitladigi ya da
+     * sohbet ettigi yazarlar sinirli bir carpanla one cikar; ayni yazarin her sonraki gonderisi diversityDecay ile
+     * zayiflar. Tum hesap tek sorguda, aday havuzu (en yeni N) ile sinirlidir; indeks ix_posts_explore kullanilir.
+     */
+    private static final String RANKED = """
+            with candidates as (
+                select p.id, p.author_user_id, p.like_count, p.reply_count, p.created_at
+                from posts p
+                join profiles pr on pr.id = p.profile_id
+                join users u on u.id = p.author_user_id
+                where\s""" + EXPLORABLE + """
+                  and p.created_at <= cast(:asOf as timestamptz)
+                  and (cast(:viewer as uuid) is null or p.author_user_id <> cast(:viewer as uuid))
+                order by p.created_at desc, p.id desc
+                limit :pool
+            ),
+            affinity as (
+                select author, least(sum(weight), :affinityCap) as weight from (
+                    select p.author_user_id as author, 1 as weight
+                    from post_likes l join posts p on p.id = l.post_id
+                    where l.user_id = cast(:viewer as uuid) and l.created_at > cast(:since as timestamptz)
+                    union all
+                    select parent.author_user_id, 2
+                    from posts r join posts parent on parent.id = r.reply_to_id
+                    where r.author_user_id = cast(:viewer as uuid) and r.created_at > cast(:since as timestamptz)
+                    union all
+                    select case when c.user_low = m.user_id then c.user_high else c.user_low end, 3
+                    from conversation_members m join conversations c on c.id = m.conversation_id
+                    where m.user_id = cast(:viewer as uuid) and m.state = 'ACTIVE'
+                      and c.last_message_at > cast(:since as timestamptz)
+                ) signals
+                group by author
+            ),
+            scored as (
+                select c.id, c.author_user_id, c.created_at,
+                       (c.like_count + :replyWeight * c.reply_count + 1)
+                         / power(greatest(extract(epoch from (cast(:asOf as timestamptz) - c.created_at)) / 3600.0, 0) + 2, :gravity)
+                         * (1 + coalesce(a.weight, 0) * :affinityStep) as score
+                from candidates c
+                left join affinity a on a.author = c.author_user_id
+            ),
+            diversified as (
+                select id, created_at,
+                       score * power(:diversityDecay, row_number() over (partition by author_user_id order by score desc, id) - 1) as rank_score
+                from scored
+            )
+            select id from diversified
+            order by rank_score desc, created_at desc, id desc
+            limit :size
+            """;
+
     private final JdbcClient jdbc;
 
     PostRepository(JdbcClient jdbc) {
@@ -87,15 +154,35 @@ class PostRepository {
                 .params(cursorParams(beforeTime, beforeId)).query(this::map).list();
     }
 
-    /** Kesfet: herkesin gorebildigi, dogrulanmis hesaplarin ust duzey gonderileri. */
+    /** Kesfet (en yeni): herkesin gorebildigi, dogrulanmis hesaplarin ust duzey gonderileri, yeniden eskiye. */
     List<Row> explore(Scope scope, Instant beforeTime, UUID beforeId, int limit) {
-        return bind(jdbc.sql(SELECT + """
-                 where p.reply_to_id is null and p.status = 'VISIBLE'
-                 and p.audience in (:audiences) and pr.profile_audience in (:audiences)
-                 and (not :requireEmail or u.email_verified_at is not null)
-                 and (not :requirePhone or u.phone_verified_at is not null)""" + cursor(beforeTime)
+        return bind(jdbc.sql(SELECT + " where " + EXPLORABLE + cursor(beforeTime)
                 + " order by p.created_at desc, p.id desc limit :limit"), scope)
                 .param("limit", limit).params(cursorParams(beforeTime, beforeId)).query(this::map).list();
+    }
+
+    /** "Senin icin" siralamasi: asOf anina gore puanlanmis gonderi kimlikleri. */
+    List<UUID> rankForYou(Scope scope, Instant asOf, FeedProperties feed) {
+        return bind(jdbc.sql(RANKED), scope)
+                .param("asOf", Timestamp.from(asOf))
+                .param("since", Timestamp.from(asOf.minus(feed.affinityWindow())))
+                .param("pool", feed.candidatePool())
+                .param("size", feed.snapshotSize())
+                .param("gravity", feed.gravity())
+                .param("replyWeight", feed.replyWeight())
+                .param("affinityStep", feed.affinityStep())
+                .param("affinityCap", feed.affinityCap())
+                .param("diversityDecay", feed.diversityDecay())
+                .query(UUID.class).list();
+    }
+
+    /** Siralanmis listenin bir sayfasi; gorunurluk o anki kurallarla yeniden kontrol edilir (silinen/gizlenen dusar). */
+    List<Row> explorable(Collection<UUID> ids, Scope scope) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return bind(jdbc.sql(SELECT + " where p.id in (:ids) and " + EXPLORABLE), scope)
+                .param("ids", ids).query(this::map).list();
     }
 
     /** Yanitlar eskiden yeniye. Onay bekleyenleri yalniz yazari ve gonderi sahibi gorur. */

@@ -57,10 +57,13 @@ public class PostService {
     private final BlockRepository blocks;
     private final UserRepository users;
     private final NotificationService notifications;
+    private final FeedSnapshots snapshots;
+    private final FeedProperties feed;
 
     public PostService(PostRepository posts, AssetService assets, AssetRepository assetRepository,
             ProfileService profiles, ProfileRepository profileRepository, ViewerService viewers,
-            PlatformSettings settings, BlockRepository blocks, UserRepository users, NotificationService notifications) {
+            PlatformSettings settings, BlockRepository blocks, UserRepository users, NotificationService notifications,
+            FeedSnapshots snapshots, FeedProperties feed) {
         this.posts = posts;
         this.assets = assets;
         this.assetRepository = assetRepository;
@@ -71,6 +74,8 @@ public class PostService {
         this.blocks = blocks;
         this.users = users;
         this.notifications = notifications;
+        this.snapshots = snapshots;
+        this.feed = feed;
     }
 
     public record Author(String username, String displayName, String avatarUrl, boolean verified) {
@@ -222,6 +227,33 @@ public class PostService {
         return page(posts.explore(scope(principal), c.time(), c.id(), PAGE + 1), principal);
     }
 
+    /**
+     * "Senin icin": ilk sayfada aday gonderiler puanlanir ve siralanmis liste saklanir; imlec o listenin kimligini ve
+     * konumunu tasir. Liste dusmusse ayni konumdan yeni bir siralamayla devam edilir.
+     */
+    @Transactional(readOnly = true)
+    public Page forYou(FolyoPrincipal principal, String cursor) {
+        UUID viewerId = principal == null ? null : principal.userId();
+        PostRepository.Scope scope = scope(principal);
+        FeedCursor position = FeedCursor.parse(cursor);
+        String token = position.token();
+        List<UUID> ranked = token == null ? null
+                : snapshots.find(token, viewerId).map(FeedSnapshots.Snapshot::ids).orElse(null);
+        if (ranked == null) {
+            ranked = posts.rankForYou(scope, Instant.now(), feed);
+            token = snapshots.save(viewerId, ranked);
+        }
+        int from = Math.min(position.offset(), ranked.size());
+        int to = Math.min(from + PAGE, ranked.size());
+        List<UUID> pageIds = ranked.subList(from, to);
+        Map<UUID, PostRepository.Row> rows = posts.explorable(pageIds, scope).stream()
+                .collect(Collectors.toMap(PostRepository.Row::id, Function.identity()));
+        List<PostRepository.Row> ordered = pageIds.stream().map(rows::get).filter(java.util.Objects::nonNull).toList();
+        Map<UUID, List<AssetView>> media = mediaMap(ordered.stream().map(PostRepository.Row::id).toList());
+        String next = to < ranked.size() ? token + "." + to : null;
+        return new Page(ordered.stream().map(r -> view(r, principal, media)).toList(), next);
+    }
+
     @Transactional(readOnly = true)
     public Thread thread(UUID postId, FolyoPrincipal principal) {
         PostRepository.Row row = posts.find(postId, scope(principal)).filter(r -> canSee(r, principal))
@@ -316,6 +348,23 @@ public class PostService {
         }
         return new PostRepository.Scope(principal == null ? null : principal.userId(), audiences, policy.requireEmail(),
                 policy.requirePhone());
+    }
+
+    /** "Senin icin" imleci: siralanmis listenin kimligi ve konumu ("token.konum"). */
+    record FeedCursor(String token, int offset) {
+
+        private static final java.util.regex.Pattern FORMAT = java.util.regex.Pattern.compile("^([A-Za-z0-9_-]{22})\\.(\\d{1,4})$");
+
+        static FeedCursor parse(String value) {
+            if (value == null || value.isBlank()) {
+                return new FeedCursor(null, 0);
+            }
+            var m = FORMAT.matcher(value);
+            if (!m.matches()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Geçersiz sayfa imleci");
+            }
+            return new FeedCursor(m.group(1), Integer.parseInt(m.group(2)));
+        }
     }
 
     /** Sayfalama imleci: son gonderinin zamani ve kimligi (base64url). */

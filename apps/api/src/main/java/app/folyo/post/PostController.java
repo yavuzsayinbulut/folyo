@@ -29,6 +29,13 @@ public class PostController {
         return posts.explore(principal, cursor);
     }
 
+    /** Kesfet "Senin icin": etkilesim, tazelik ve bakan kisinin yakinligina gore siralanmis gonderiler. */
+    @GetMapping("/api/public/posts/for-you")
+    public PostService.Page forYou(@AuthenticationPrincipal FolyoPrincipal principal,
+            @RequestParam(required = false) String cursor) {
+        return posts.forYou(principal, cursor);
+    }
+
     @GetMapping("/api/public/profiles/{username}/posts")
     public PostService.Page profile(@PathVariable String username, @AuthenticationPrincipal FolyoPrincipal principal,
             @RequestParam(required = false) String cursor) {
