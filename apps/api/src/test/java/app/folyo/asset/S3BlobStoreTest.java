@@ -13,8 +13,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -22,10 +22,16 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
-/** S3 uyumlu depo (MinIO): yazma, aralikli okuma, boyut, silme. */
+/**
+ * S3 uyumlu depo: yazma, aralikli okuma, boyut, silme. Sunucu olarak acik kaynak S3 taklidi (adobe/s3mock) kullanilir;
+ * MinIO hazir imaj dagitimini durdurdu.
+ */
 class S3BlobStoreTest {
 
-    static MinIOContainer minio = new MinIOContainer(DockerImageName.parse("quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z").asCompatibleSubstituteFor("minio/minio"));
+    @SuppressWarnings("resource")
+    static GenericContainer<?> s3 = new GenericContainer<>("adobe/s3mock:3.12.0")
+            .withExposedPorts(9090)
+            .waitingFor(Wait.forHttp("/").forPort(9090));
     static S3BlobStore store;
 
     @TempDir
@@ -33,25 +39,24 @@ class S3BlobStoreTest {
 
     @BeforeAll
     static void start() {
-        minio.start();
+        s3.start();
+        String endpoint = "http://" + s3.getHost() + ":" + s3.getMappedPort(9090);
         try (S3Client admin = S3Client.builder()
                 .httpClient(UrlConnectionHttpClient.create())
                 .region(Region.US_EAST_1)
-                .endpointOverride(java.net.URI.create(minio.getS3URL()))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(minio.getUserName(), minio.getPassword())))
+                .endpointOverride(java.net.URI.create(endpoint))
+                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test")))
                 .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
                 .build()) {
             admin.createBucket(r -> r.bucket("folyo"));
         }
-        store = new S3BlobStore(new StorageSettings.S3(minio.getS3URL(), "us-east-1", "folyo", minio.getUserName(), null, true),
-                minio.getPassword());
+        store = new S3BlobStore(new StorageSettings.S3(endpoint, "us-east-1", "folyo", "test", null, true), "test");
     }
 
     @AfterAll
     static void stop() {
         store.close();
-        minio.stop();
+        s3.stop();
     }
 
     @Test

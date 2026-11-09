@@ -12,7 +12,8 @@ COPY . .
 ARG API_URL=http://api:8080
 ARG WEB_URL=https://folyo.app
 ENV API_URL=$API_URL WEB_URL=$WEB_URL NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# public/ istege bagli (ikonlar src/app altinda); yoksa son asamadaki kopyalama bos klasorle calisir.
+RUN npm run build && mkdir -p public
 
 # Calisma: Next.js "standalone" ciktisi; node_modules'un yalniz gereken kismi, root olmayan kullanici.
 FROM node:22-alpine AS run
