@@ -1,0 +1,31 @@
+# HTTPS sertifikasi Let's Encrypt'ten otomatik alinir ve yenilenir.
+{$FOLYO_DOMAIN} {
+	encode zstd gzip
+
+	# API ve OAuth donusleri dogrudan Spring'e; geri kalan her sey Next.js'e.
+	# Caddy, istemcinin gonderdigi X-Forwarded-For'u yok sayar ve gercek IP'yi yazar;
+	# API yalniz bu ic agdan erisilebilir oldugu icin basliga guvenmek guvenlidir.
+	@api path /api/* /oauth2/* /login/oauth2/*
+	handle @api {
+		request_body {
+			max_size 12MB
+		}
+		reverse_proxy api:8080
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+
+	# Actuator yalniz ic agdan (compose healthcheck) okunur; yukaridaki eslesme zaten disari acmaz.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

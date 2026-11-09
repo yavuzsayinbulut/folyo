@@ -1,0 +1,89 @@
+# folyo prod yigini: tek sunucu, Docker Compose. Disariya yalniz Caddy (80/443) acilir;
+# API, web ve veritabani ic agda kalir. Gizli bilgiler .env dosyasindan gelir (bkz. .env.example).
+name: folyo
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: folyo
+      POSTGRES_USER: folyo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD gerekli}
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U folyo -d folyo"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/yavuzsayinbulut/folyo-api:latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/folyo
+      SPRING_DATASOURCE_USERNAME: folyo
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      FOLYO_WEB_URL: https://${FOLYO_DOMAIN}
+      FOLYO_TOKEN_KEY: ${FOLYO_TOKEN_KEY:?FOLYO_TOKEN_KEY gerekli}
+      FOLYO_GITHUB_TOKEN: ${FOLYO_GITHUB_TOKEN:-}
+      FOLYO_LASTFM_API_KEY: ${FOLYO_LASTFM_API_KEY:-}
+      FOLYO_REDDIT_CLIENT_ID: ${FOLYO_REDDIT_CLIENT_ID:-}
+      FOLYO_REDDIT_CLIENT_SECRET: ${FOLYO_REDDIT_CLIENT_SECRET:-}
+      FOLYO_SPOTIFY_CLIENT_ID: ${FOLYO_SPOTIFY_CLIENT_ID:-}
+      FOLYO_SPOTIFY_CLIENT_SECRET: ${FOLYO_SPOTIFY_CLIENT_SECRET:-}
+      FOLYO_STRAVA_CLIENT_ID: ${FOLYO_STRAVA_CLIENT_ID:-}
+      FOLYO_STRAVA_CLIENT_SECRET: ${FOLYO_STRAVA_CLIENT_SECRET:-}
+      FOLYO_EXPO_ACCESS_TOKEN: ${FOLYO_EXPO_ACCESS_TOKEN:-}
+      # Bos birakilan saglayici kapali kalir (LoginProviders); donus adresi FOLYO_WEB_URL'den kurulur.
+      FOLYO_LOGIN_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      FOLYO_LOGIN_GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FOLYO_LOGIN_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      FOLYO_LOGIN_GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    volumes:
+      - media:/data/media
+    healthcheck:
+      # Imajda curl/wget yok; bash'in /dev/tcp'si ile hazirlik durumu sorulur (sh bunu desteklemez, bash zorunlu).
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/yavuzsayinbulut/folyo-web:latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080
+      WEB_URL: https://${FOLYO_DOMAIN}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      FOLYO_DOMAIN: ${FOLYO_DOMAIN:?FOLYO_DOMAIN gerekli}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  media:
+  caddy-data:
+  caddy-config:
