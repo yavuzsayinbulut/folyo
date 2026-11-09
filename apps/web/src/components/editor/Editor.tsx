@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { IconArrowUpRight, IconLogout } from "@tabler/icons-react";
+import { IconArrowUpRight, IconCompass, IconLogout, IconMessageCircle, IconSettings } from "@tabler/icons-react";
 import { api, ApiError, fetchMe } from "@/lib/client-api";
 import type { Card, Me, Profile } from "@/lib/types";
 import { themeProps } from "@/lib/themes";
+import { useChatUnread } from "../AppHeader";
 import { Avatar } from "../Avatar";
 import { BentoGrid } from "../CardTile";
 import { useConfirm } from "../ConfirmDialog";
 import { AppearancePicker } from "./AppearancePicker";
+import { AvatarPicker } from "./AvatarPicker";
 import { CardManager } from "./CardManager";
 import { ClaimForm } from "./ClaimForm";
 import { CopyLink, GettingStarted } from "./GettingStarted";
 import { GuestbookModeration } from "./GuestbookModeration";
+import { PrivacyForm } from "./PrivacyForm";
 import { ProfileForm } from "./ProfileForm";
 import { StatsPanel } from "./StatsPanel";
 
@@ -71,7 +74,15 @@ export function Editor() {
       ? { ok: false, text: "Hesap bağlanmadı: izin verilmedi." }
       : null;
 
-  return <Workspace me={me} profile={me.profile} notice={notice} onProfileChange={(profile) => setMe({ ...me, profile })} />;
+  return (
+    <Workspace
+      me={me}
+      profile={me.profile}
+      notice={notice}
+      onProfileChange={(profile) => setMe({ ...me, profile })}
+      onAvatarChange={(avatarUrl) => setMe({ ...me, user: { ...me.user, avatarUrl } })}
+    />
+  );
 }
 
 function Workspace({
@@ -79,16 +90,20 @@ function Workspace({
   profile,
   notice,
   onProfileChange,
+  onAvatarChange,
 }: {
   me: Me;
   profile: Profile;
   notice: { ok: boolean; text: string } | null;
   onProfileChange: (p: Profile) => void;
+  onAvatarChange: (url: string | null) => void;
 }) {
   const router = useRouter();
   const [cards, setCards] = useState<Card[] | null>(null);
   const [cardsFailed, setCardsFailed] = useState(false);
   const [tab, setTab] = useState<"edit" | "stats">("edit");
+  const [unread] = useChatUnread(true);
+  const badge = unread ? unread.chats + unread.requests : 0;
   const pageUrl = `${typeof window === "undefined" ? "" : window.location.origin}/${profile.username}`;
 
   const loadCards = useCallback(() => {
@@ -126,13 +141,31 @@ function Workspace({
                 key={value}
                 onClick={() => setTab(value)}
                 aria-current={tab === value ? "page" : undefined}
-                className={`h-8 rounded-lg px-3 text-sm ${tab === value ? "bg-surface-2 text-ink font-medium" : "text-ink-2 hover:text-ink"}`}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm ${tab === value ? "bg-surface-2 text-ink font-medium" : "text-ink-2 hover:text-ink"}`}
               >
                 {label}
               </button>
             ))}
+            <Link href="/sohbet" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm text-ink-2 hover:text-ink">
+              <IconMessageCircle size={16} aria-hidden="true" className="hidden sm:inline" />
+              Sohbetler
+              {badge > 0 && (
+                <span className="rounded-full bg-accent px-1.5 text-[11px] font-medium leading-5 text-on-accent" aria-label={`${badge} okunmamış`}>
+                  {badge}
+                </span>
+              )}
+            </Link>
+            <Link href="/kesfet" className="hidden h-8 items-center gap-1.5 rounded-lg px-3 text-sm text-ink-2 hover:text-ink sm:inline-flex">
+              <IconCompass size={16} aria-hidden="true" />
+              Keşfet
+            </Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            {me.user.admin && (
+              <Link href="/admin" className="inline-flex h-9 items-center gap-1 rounded-xl px-3 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
+                <IconSettings size={16} aria-hidden="true" /> Yönetim
+              </Link>
+            )}
             <CopyLink url={pageUrl} compact className="hidden sm:inline-flex" />
             <Link href={`/${profile.username}`} target="_blank" className="inline-flex h-9 items-center gap-1 rounded-xl border border-line-strong px-3 text-sm hover:bg-surface-2">
               Sayfanı gör <IconArrowUpRight size={15} aria-hidden="true" />
@@ -157,8 +190,10 @@ function Workspace({
               </p>
             )}
             {cards && <GettingStarted profile={profile} cards={cards} pageUrl={pageUrl} />}
+            <AvatarPicker name={profile.displayName} url={me.user.avatarUrl} onChange={onAvatarChange} />
             <ProfileForm profile={profile} onSaved={onProfileChange} />
             <AppearancePicker profile={profile} onSaved={onProfileChange} />
+            <PrivacyForm profile={profile} onSaved={onProfileChange} />
             {cards ? (
               <CardManager cards={cards} onChange={setCards} />
             ) : cardsFailed ? (
@@ -178,7 +213,7 @@ function Workspace({
               <p className="text-ink-3">Kartlar yükleniyor…</p>
             )}
             <GuestbookModeration />
-            <AccountSettings username={profile.username} />
+            <AccountSettings username={profile.username} verified={me.user.verified} />
           </div>
 
           <aside aria-label="Önizleme" className="lg:sticky lg:top-20 self-start min-w-0">
@@ -222,7 +257,7 @@ function LoadError({ onRetry }: { onRetry: () => void }) {
 }
 
 /** Hesap silme: kullanici adini yazarak onaylanir; geri donusu yoktur. */
-function AccountSettings({ username }: { username: string }) {
+function AccountSettings({ username, verified }: { username: string; verified: boolean }) {
   const router = useRouter();
   const [confirm, confirmDialog] = useConfirm();
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +282,16 @@ function AccountSettings({ username }: { username: string }) {
   return (
     <section aria-labelledby="account" className="rounded-2xl border border-line bg-surface p-5">
       <h2 id="account" className="font-medium">Hesap</h2>
+      <p className="mt-1 text-sm">
+        {verified ? (
+          <span className="text-ok-ink">Hesabın doğrulanmış.</span>
+        ) : (
+          <span className="text-ink-2">Başka sayfalara mesaj ve yorum yazmak için hesabını doğrula.</span>
+        )}{" "}
+        <Link href="/hesap/dogrulama" className="underline underline-offset-2 hover:text-ink">
+          {verified ? "Doğrulama bilgileri" : "Doğrula"}
+        </Link>
+      </p>
       <p className="mt-1 text-sm text-ink-3">
         Verilerin nasıl kullanıldığını{" "}
         <Link href="/gizlilik" className="underline underline-offset-2 hover:text-ink">
