@@ -53,7 +53,7 @@ export default function AddCard() {
   const detected = type === "LINK" && value.trim() ? platformForUrl(value.includes("://") ? value : `https://${value}`) : null;
 
   return (
-    <Screen>
+    <Screen underHeader>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
         {CHOICES.map((choice) => {
           const active = choice.type === type;

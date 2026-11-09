@@ -56,7 +56,7 @@ export default function PageTab() {
       setCards(await api<Card[]>("/api/me/cards/order", { method: "PUT", body: { cardIds: next.map((item) => item.id) } }));
     });
 
-  const patch = (card: Card, body: Partial<Pick<Card, "size" | "visible">>) =>
+  const patch = (card: Card, body: Partial<Pick<Card, "size" | "visible" | "audience">>) =>
     run(async () => replace(await api<Card>(`/api/me/cards/${card.id}`, { method: "PATCH", body })));
 
   const remove = (card: Card) =>
@@ -178,6 +178,7 @@ export default function PageTab() {
         onClose={() => setSelectedId(null)}
         onResize={(size) => selected && patch(selected, { size })}
         onToggle={() => selected && patch(selected, { visible: !selected.visible })}
+        onAudience={(audience) => selected && patch(selected, { audience })}
         onMove={(delta) => selected && move(selected, delta)}
         onDelete={() => selected && remove(selected)}
         onMediaChange={(media) => selected && replace({ ...selected, media })}

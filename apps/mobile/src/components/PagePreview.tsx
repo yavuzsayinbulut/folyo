@@ -1,5 +1,6 @@
 import { IconQuote } from "@tabler/icons-react-native";
 import { Image, Pressable, Text, useColorScheme, View } from "react-native";
+import { useAuthHeaders } from "@/lib/api";
 import { absolute } from "@/lib/config";
 import { pageLook, type PageLook } from "@/lib/pageThemes";
 import { describeCard } from "@/lib/platforms";
@@ -74,6 +75,7 @@ function packRows(cards: Card[]): Card[][] {
 }
 
 function Tile({ card, look, onPress }: { card: Card; look: PageLook; onPress: () => void }) {
+  const authHeaders = useAuthHeaders();
   const { platform, title, subtitle } = describeCard(card);
   // 1x1 kartlar satiri paylasir; satirda tek kalan 1x1 yarim genislikte kalir (web'deki bos hucre gibi).
   const sizing = card.size === "SMALL" ? ({ flex: 1, maxWidth: "50%" } as const) : ({ flex: 1 } as const);
@@ -98,7 +100,7 @@ function Tile({ card, look, onPress }: { card: Card; look: PageLook; onPress: ()
     >
       {cover ? (
         <>
-          <Image source={{ uri: absolute(cover.url) }} style={{ position: "absolute", width: "100%", height: "100%" }} />
+          <Image source={{ uri: absolute(cover.url), headers: authHeaders }} style={{ position: "absolute", width: "100%", height: "100%" }} />
           <View style={{ position: "absolute", left: 8, bottom: 8, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
             <Text numberOfLines={1} style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>{title}</Text>
           </View>

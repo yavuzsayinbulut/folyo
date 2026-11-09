@@ -2,7 +2,7 @@ import { IconArrowDown, IconArrowUp, IconPlus, IconTrash, IconX } from "@tabler/
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { Image, Platform, Pressable, Switch, Text, View } from "react-native";
-import { ApiError, useApi } from "@/lib/api";
+import { ApiError, useApi, useAuthHeaders } from "@/lib/api";
 import { absolute } from "@/lib/config";
 import { confirm } from "@/lib/confirm";
 import { describeCard } from "@/lib/platforms";
@@ -24,6 +24,7 @@ export function CardSheet(props: {
   onClose: () => void;
   onResize: (size: CardSize) => void;
   onToggle: () => void;
+  onAudience: (audience: Card["audience"]) => void;
   onMove: (delta: -1 | 1) => void;
   onDelete: () => void;
   onMediaChange: (media: MediaItem[]) => void;
@@ -55,6 +56,21 @@ export function CardSheet(props: {
           accessibilityLabel="Sayfada göster"
         />
       </SheetRow>
+
+      {card.visible ? (
+        <View style={{ paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: c.line }}>
+          <Text style={{ fontSize: 15, color: c.ink, marginBottom: 8 }}>Kim görebilir</Text>
+          <Segmented
+            options={[
+              { value: "EVERYONE" as Card["audience"], label: "Herkes" },
+              { value: "SIGNED_IN" as Card["audience"], label: "Giriş" },
+              { value: "VERIFIED" as Card["audience"], label: "Doğrulanmış" },
+            ]}
+            value={card.audience}
+            onChange={props.onAudience}
+          />
+        </View>
+      ) : null}
 
       {card.type === "GALLERY" ? <GalleryEditor card={card} onChange={props.onMediaChange} /> : null}
 
@@ -105,6 +121,7 @@ function SheetButton(props: { label: string; icon: React.ReactNode; onPress: () 
 
 /** Fotograflar galeriden secilir ve sirayla yuklenir; sunucu boyutlandirir ve konum dahil tum metadata'yi siler. */
 function GalleryEditor({ card, onChange }: { card: Card; onChange: (media: MediaItem[]) => void }) {
+  const authHeaders = useAuthHeaders();
   const c = useColors();
   const api = useApi();
   const [status, setStatus] = useState<string | null>(null);
@@ -152,7 +169,7 @@ function GalleryEditor({ card, onChange }: { card: Card; onChange: (media: Media
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {media.map((item) => (
           <View key={item.id}>
-            <Image source={{ uri: absolute(item.url) }} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: c.surface2 }} />
+            <Image source={{ uri: absolute(item.url), headers: authHeaders }} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: c.surface2 }} />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Fotoğrafı sil"
