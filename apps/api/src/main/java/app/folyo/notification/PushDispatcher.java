@@ -14,7 +14,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Kuyruktaki bildirimleri Expo Push'a iletir.
- * - Teslim "en az bir kez"dir: Expo kabul edip commit basarisiz olursa bildirim tekrar gidebilir; kaybolmaz.
+ * - Kayitlar kisa bir transaction'da kiralanir; Expo cagrisi transaction disinda yapilir, sonuc kayit basina ayri
+ *   transaction'da yazilir. Boylece bir kaydin hatasi digerlerini geri almaz ve gonderilmisler tekrar gitmez.
+ * - Teslim "en az bir kez"dir: Expo kabul edip sonuc yazilamazsa kira dolunca bildirim tekrar gidebilir; kaybolmaz.
  * - Gecici hatada ustel bekleme ile 5 kez denenir, sonra "basarisiz" isaretlenir.
  * - Gecersizlesmis cihazlar (DeviceNotRegistered) hem bilette hem sonradan gelen makbuzda silinir.
  */
@@ -25,6 +27,8 @@ public class PushDispatcher {
     static final int BATCH = 50;
     static final int MAX_ATTEMPTS = 5;
     private static final Duration RECEIPT_DELAY = Duration.ofMinutes(15);
+    /** Bir turda gonderim bu sureyi asarsa kayit baska bir tura birakilir. */
+    static final Duration LEASE = Duration.ofMinutes(2);
 
     private final NotificationRepository repository;
     private final ExpoPushClient expo;
@@ -49,21 +53,38 @@ public class PushDispatcher {
 
     /** @return bu turda islenen kuyruk kaydi sayisi */
     public int dispatchDue() {
-        Integer processed = transaction.execute(status -> {
-            List<NotificationRepository.OutboxItem> due = repository.claimDue(BATCH);
-            for (NotificationRepository.OutboxItem item : due) {
+        List<NotificationRepository.OutboxItem> due = transaction.execute(status -> repository.claimDue(BATCH, LEASE));
+        if (due == null) {
+            return 0;
+        }
+        for (NotificationRepository.OutboxItem item : due) {
+            try {
                 deliver(item);
+            } catch (RuntimeException e) {
+                // Beklenmeyen hata yalniz bu kaydi etkiler; deneme sayilir, sinir dolunca birakilir (sonsuz tekrar yok).
+                log.warn("Bildirim gonderilemedi: {}", item.id(), e);
+                try {
+                    transaction.executeWithoutResult(status -> {
+                        if (item.attempts() + 1 >= MAX_ATTEMPTS) {
+                            repository.markFailed(item.id(), String.valueOf(e.getMessage()));
+                        } else {
+                            repository.markRetry(item.id(), Instant.now().plus(Duration.ofMinutes(1L << item.attempts())),
+                                    String.valueOf(e.getMessage()));
+                        }
+                    });
+                } catch (RuntimeException ignored) {
+                    // Veritabani da yanit vermiyorsa kira dolunca kayit yeniden alinir.
+                }
             }
-            return due.size();
-        });
-        return processed == null ? 0 : processed;
+        }
+        return due.size();
     }
 
     private void deliver(NotificationRepository.OutboxItem item) {
         List<NotificationRepository.Device> devices = repository.devicesOf(item.userId());
         if (devices.isEmpty()) {
             // Kullanici cihazini kaldirmis; gonderilecek yer yok.
-            repository.markSent(item.id());
+            transaction.executeWithoutResult(status -> repository.markSent(item.id()));
             return;
         }
         Map<String, Object> data = parse(item.data());
@@ -71,8 +92,21 @@ public class PushDispatcher {
         for (NotificationRepository.Device device : devices) {
             messages.add(new ExpoPushClient.Message(device.expoToken(), item.title(), item.body(), data));
         }
+        List<ExpoPushClient.Ticket> tickets;
         try {
-            List<ExpoPushClient.Ticket> tickets = expo.send(messages);
+            tickets = expo.send(messages);
+        } catch (ExpoPushClient.PushUnavailableException e) {
+            transaction.executeWithoutResult(status -> {
+                if (item.attempts() + 1 >= MAX_ATTEMPTS) {
+                    repository.markFailed(item.id(), e.getMessage());
+                } else {
+                    Duration backoff = Duration.ofMinutes(1L << item.attempts());
+                    repository.markRetry(item.id(), Instant.now().plus(backoff), e.getMessage());
+                }
+            });
+            return;
+        }
+        transaction.executeWithoutResult(status -> {
             for (int i = 0; i < tickets.size(); i++) {
                 ExpoPushClient.Ticket ticket = tickets.get(i);
                 NotificationRepository.Device device = devices.get(i);
@@ -83,14 +117,7 @@ public class PushDispatcher {
                 }
             }
             repository.markSent(item.id());
-        } catch (ExpoPushClient.PushUnavailableException e) {
-            if (item.attempts() + 1 >= MAX_ATTEMPTS) {
-                repository.markFailed(item.id(), e.getMessage());
-            } else {
-                Duration backoff = Duration.ofMinutes(1L << item.attempts());
-                repository.markRetry(item.id(), Instant.now().plus(backoff), e.getMessage());
-            }
-        }
+        });
     }
 
     /** Expo, bildirimin cihaza ulasip ulasmadigini ~15 dk sonra makbuzla bildirir. */

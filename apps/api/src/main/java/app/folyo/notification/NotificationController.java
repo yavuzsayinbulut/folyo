@@ -15,9 +15,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -61,10 +59,15 @@ public class NotificationController {
                 body.platform());
     }
 
-    @DeleteMapping("/api/me/devices/{expoToken}")
+    public record UnregisterRequest(@NotBlank String expoToken) {
+    }
+
+    /** Bildirim adresi erisim loglarina dusmesin diye adres satirinda degil govdede gelir. */
+    @PostMapping("/api/me/devices/unregister")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void unregister(@AuthenticationPrincipal FolyoPrincipal principal, @PathVariable String expoToken) {
-        notifications.unregisterDevice(principal.userId(), expoToken);
+    public void unregister(@AuthenticationPrincipal FolyoPrincipal principal,
+            @Valid @RequestBody UnregisterRequest body) {
+        notifications.unregisterDevice(principal.userId(), body.expoToken());
     }
 
     @GetMapping("/api/me/notification-settings")

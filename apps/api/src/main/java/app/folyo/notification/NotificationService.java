@@ -58,8 +58,10 @@ public class NotificationService {
     }
 
     public NotificationRepository.Settings saveSettings(UUID userId, NotificationRepository.Settings settings) {
-        repository.saveSettings(userId, settings);
-        return settings;
+        Boolean messages = settings.messages() != null ? settings.messages() : repository.settings(userId).messages();
+        var merged = new NotificationRepository.Settings(settings.guestbook(), settings.weeklySummary(), messages);
+        repository.saveSettings(userId, merged);
+        return merged;
     }
 
     /**
@@ -75,6 +77,52 @@ public class NotificationService {
         String preview = body.length() > 100 ? body.substring(0, 99) + "…" : body;
         repository.enqueue(profile.getUserId(), "guestbook", "Ziyaretçi defterine yeni mesaj",
                 authorName + ": " + preview, "{\"path\":\"/\"}", "guestbook:" + entryId);
+    }
+
+    /** Iletisim kutusuna yeni mesaj. Mesajla ayni transaction'da kuyruga girer. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void enqueueNewMessage(Profile profile, String senderName, UUID messageId, String body, boolean request) {
+        if (!repository.settings(profile.getUserId()).messages()) {
+            return;
+        }
+        String preview = body.length() > 100 ? body.substring(0, 99) + "…" : body;
+        repository.enqueue(profile.getUserId(), "message", request ? "Yeni mesaj isteği" : "Yeni mesaj",
+                senderName + ": " + preview, "{\"path\":\"/messages\"}", "message:" + messageId);
+    }
+
+    /** Gonderiye yanit: gonderi sahibine bildirim (onay bekliyorsa bunu soyler). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void enqueuePostReply(UUID ownerUserId, String authorName, UUID postId, UUID replyId, String body,
+            boolean pending) {
+        if (!repository.settings(ownerUserId).guestbook()) {
+            return;
+        }
+        String text = body == null ? "fotoğraf/video paylaştı" : (body.length() > 100 ? body.substring(0, 99) + "…" : body);
+        repository.enqueue(ownerUserId, "post_reply", pending ? "Onay bekleyen yanıt" : "Gönderine yanıt",
+                authorName + ": " + text, "{\"path\":\"/posts/" + postId + "\"}", "reply:" + replyId);
+    }
+
+    /** Sohbette yeni mesaj: alici cevrimdisiysa telefonuna bildirim. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void enqueueChatMessage(UUID recipientId, String senderName, UUID conversationId, long messageId,
+            String preview, boolean request) {
+        if (!repository.settings(recipientId).messages()) {
+            return;
+        }
+        String text = preview.length() > 100 ? preview.substring(0, 99) + "…" : preview;
+        repository.enqueue(recipientId, "message", request ? "Yeni mesaj isteği" : senderName, request ? senderName + ": " + text : text,
+                "{\"path\":\"/chat/" + conversationId + "\"}", "chat:" + messageId);
+    }
+
+    /** Onay bekleyen defter yazisi: sahip onaylayana kadar sayfada gorunmez. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void enqueueGuestbookPending(Profile profile, String authorName, UUID entryId) {
+        if (!repository.settings(profile.getUserId()).guestbook()) {
+            return;
+        }
+        repository.enqueue(profile.getUserId(), "guestbook", "Onay bekleyen defter mesajı",
+                authorName + " sayfana mesaj bıraktı; onaylarsan görünecek.", "{\"path\":\"/\"}",
+                "guestbook:" + entryId);
     }
 
     /**

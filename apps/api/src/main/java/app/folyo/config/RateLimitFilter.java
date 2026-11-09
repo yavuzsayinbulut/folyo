@@ -42,7 +42,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
             new Rule("oauth", HttpMethod.GET, "/oauth2/authorization/**", 20),
             new Rule("mobile-token", HttpMethod.POST, "/api/mobile/**", 20),
             new Rule("guestbook", HttpMethod.POST, "/api/profiles/*/guestbook", 10),
+            new Rule("message", HttpMethod.POST, "/api/profiles/*/messages", 10),
+            new Rule("verification", HttpMethod.POST, "/api/me/verification/**", 10),
+            new Rule("admin-test", HttpMethod.POST, "/api/admin/settings/*/test", 5),
             new Rule("upload", HttpMethod.POST, "/api/me/cards/*/media", 30),
+            new Rule("asset-upload", HttpMethod.POST, "/api/me/assets/**", 30),
+            new Rule("chat-send", HttpMethod.POST, "/api/me/conversations/*/messages", 60),
+            new Rule("post", HttpMethod.POST, "/api/me/posts", 30),
             new Rule("write", null, "/api/me/**", 120));
 
     private static final AntPathMatcher PATHS = new AntPathMatcher();

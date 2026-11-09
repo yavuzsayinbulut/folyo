@@ -1,5 +1,6 @@
 package app.folyo.config;
 
+import app.folyo.auth.GitHubEmailUserService;
 import app.folyo.auth.LoginRedirect;
 import app.folyo.auth.OAuthLoginSuccessHandler;
 import app.folyo.mobile.BearerTokenFilter;
@@ -30,14 +31,16 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
             ObjectProvider<ClientRegistrationRepository> clientRegistrations,
-            OAuthLoginSuccessHandler oauthLoginSuccessHandler, MobileAuthService mobileAuth) throws Exception {
+            OAuthLoginSuccessHandler oauthLoginSuccessHandler, GitHubEmailUserService gitHubUserService,
+            MobileAuthService mobileAuth) throws Exception {
         http
                 .cors(cors -> {
                 })
                 // Mobil uygulama: Authorization: Bearer ile gelir, oturum acmaz.
                 .addFilterBefore(new BearerTokenFilter(mobileAuth), AnonymousAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/me/**").authenticated()
+                        .requestMatchers("/api/me/**", "/api/admin/**", "/api/realtime").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/profiles/*/messages").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/profiles/*/guestbook").authenticated()
                         .anyRequest().permitAll())
                 // Web ayni origin'den (Next.js proxy) gelir; XSRF-TOKEN cookie + X-XSRF-TOKEN header.
@@ -55,7 +58,8 @@ public class SecurityConfig {
 
         // Google/GitHub istemci bilgileri ortam degiskenleriyle verilmisse OAuth girisi acilir.
         if (clientRegistrations.getIfAvailable() != null) {
-            http.oauth2Login(oauth -> oauth.successHandler(oauthLoginSuccessHandler))
+            http.oauth2Login(oauth -> oauth.successHandler(oauthLoginSuccessHandler)
+                            .userInfoEndpoint(info -> info.userService(gitHubUserService)))
                     .addFilterBefore(new LoginRedirect(), OAuth2AuthorizationRequestRedirectFilter.class);
         }
         return http.build();

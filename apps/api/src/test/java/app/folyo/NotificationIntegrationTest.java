@@ -224,6 +224,7 @@ class NotificationIntegrationTest {
 
     private Person person() {
         User user = userService.signIn("test", UUID.randomUUID().toString(), null, "Test", null);
+        TestUsers.verify(org.springframework.jdbc.core.simple.JdbcClient.create(jdbc), user.getId());
         return new Person(authentication(UsernamePasswordAuthenticationToken.authenticated(
                 new FolyoPrincipal(user.getId(), user.getName()), null, List.of(new SimpleGrantedAuthority("ROLE_USER")))),
                 user.getId(), null);

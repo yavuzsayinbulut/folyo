@@ -1,5 +1,6 @@
 package app.folyo.notification;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -12,7 +13,8 @@ public class NotificationRepository {
     public record Device(UUID id, String expoToken) {
     }
 
-    public record Settings(boolean guestbook, boolean weeklySummary) {
+    /** messages bos gelirse (eski istemci) mevcut tercih korunur. */
+    public record Settings(boolean guestbook, boolean weeklySummary, Boolean messages) {
     }
 
     public record PendingReceipt(String ticketId, UUID deviceId) {
@@ -58,17 +60,20 @@ public class NotificationRepository {
     // --- ayarlar ---
 
     public Settings settings(UUID userId) {
-        return jdbc.sql("select guestbook, weekly_summary from notification_settings where user_id = :user")
+        return jdbc.sql("select guestbook, weekly_summary, messages from notification_settings where user_id = :user")
                 .param("user", userId)
-                .query((rs, i) -> new Settings(rs.getBoolean("guestbook"), rs.getBoolean("weekly_summary")))
-                .optional().orElse(new Settings(true, true));
+                .query((rs, i) -> new Settings(rs.getBoolean("guestbook"), rs.getBoolean("weekly_summary"),
+                        rs.getBoolean("messages")))
+                .optional().orElse(new Settings(true, true, true));
     }
 
     public void saveSettings(UUID userId, Settings settings) {
         jdbc.sql("""
-                insert into notification_settings (user_id, guestbook, weekly_summary) values (:user, :g, :w)
-                on conflict (user_id) do update set guestbook = excluded.guestbook, weekly_summary = excluded.weekly_summary""")
-                .param("user", userId).param("g", settings.guestbook()).param("w", settings.weeklySummary()).update();
+                insert into notification_settings (user_id, guestbook, weekly_summary, messages) values (:user, :g, :w, :m)
+                on conflict (user_id) do update set guestbook = excluded.guestbook, weekly_summary = excluded.weekly_summary,
+                    messages = excluded.messages""")
+                .param("user", userId).param("g", settings.guestbook()).param("w", settings.weeklySummary())
+                .param("m", settings.messages()).update();
     }
 
     /** Haftalik ozet alacak kullanicilar: en az bir cihazi ve sayfasi olan, ozeti kapatmamis olanlar. */
@@ -97,13 +102,22 @@ public class NotificationRepository {
      * Gonderim sirasi gelmis kayitlari kilitleyerek alir. SKIP LOCKED: ayni anda calisan baska bir gonderici
      * bu satirlari atlar; bir bildirim iki is tarafindan birden gonderilmez. Cagiran transaction icinde olmalidir.
      */
-    public List<OutboxItem> claimDue(int limit) {
+    /**
+     * Zamani gelen kayitlari kiralar: bir sonraki deneme zamani kira suresi kadar ileri alinir ve hemen commit edilir.
+     * Gonderim bu transaction'in disinda yapilir; gonderici cokerse kira dolunca kayit yeniden alinir (kaybolmaz).
+     * Es zamanli iki gonderici ayni kaydi alamaz (SKIP LOCKED + kira).
+     */
+    public List<OutboxItem> claimDue(int limit, Duration lease) {
         return jdbc.sql("""
-                select id, user_id, title, body, data::text as data, attempts from push_outbox
-                where sent_at is null and failed_at is null and next_attempt_at <= now()
-                order by next_attempt_at limit :limit
-                for update skip locked""")
-                .param("limit", limit)
+                with due as (
+                    select id from push_outbox
+                    where sent_at is null and failed_at is null and next_attempt_at <= now()
+                    order by next_attempt_at limit :limit
+                    for update skip locked)
+                update push_outbox o set next_attempt_at = now() + make_interval(secs => :lease)
+                from due where o.id = due.id
+                returning o.id, o.user_id, o.title, o.body, o.data::text as data, o.attempts""")
+                .param("limit", limit).param("lease", (double) lease.toSeconds())
                 .query((rs, i) -> new OutboxItem(rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
                         rs.getString("title"), rs.getString("body"), rs.getString("data"), rs.getInt("attempts")))
                 .list();
