@@ -41,6 +41,7 @@ Boş bırakılan sağlayıcı kapalı kalır, uygulama yine açılır.
 - `FOLYO_TOKEN_KEY`
 - `FOLYO_EXPO_ACCESS_TOKEN`
 - `FOLYO_MEDIA_DIR`
+- `FOLYO_FEED_*` (isteğe bağlı; Keşfet "Senin için" katsayıları, varsayılanlar `post/FeedProperties.java` içinde)
 
 Secret değerleri repoya eklenmez; yalnız boş `.env.example` vardır. Testler şifreleme
 anahtarını her çalıştırmada rastgele üretir.
@@ -61,5 +62,5 @@ ve `FOR UPDATE SKIP LOCKED` ile dağıtılır.
 ./mvnw test
 ```
 
-Testler Docker üzerinde gerçek PostgreSQL (S3 testi için MinIO) ile çalışır; video testleri
+Testler Docker üzerinde gerçek PostgreSQL (S3 testi için adobe/s3mock) ile çalışır; video testleri
 için `ffmpeg` kurulu olmalıdır.

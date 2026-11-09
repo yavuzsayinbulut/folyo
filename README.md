@@ -97,6 +97,13 @@ Tek sunucu, Docker Compose ve Caddy. Adımlar, yedekleme ve güvenlik notları [
 - **Gönderiler:** En fazla 500 karakter, 4 fotoğraf ya da 1 video. Kitle: Herkes / Giriş yapanlar / Doğrulanmışlar.
   Profil akışı ve Keşfet (`/kesfet`, yalnız doğrulanmış yazarlar), beğeni, tek seviye yanıt (sayfa sahibinin yorum
   kuralına uyar, "onayımdan sonra" ise onay bekler). Akışlar `(created_at, id)` imleciyle sayfalanır; OFFSET yoktur.
+- **Keşfet "Senin için":** En yeni 500 aday gönderi tek sorguda puanlanır:
+  `(beğeni + 2×yanıt + 1) / (saat + 2)^1.5`; bakan kişinin son 90 günde beğendiği, yanıtladığı ya da sohbet ettiği
+  yazarlar sınırlı bir çarpanla (en fazla 2×) öne çıkar; aynı yazarın her sonraki gönderisi 0,6 ile çarpılır (tek
+  yazar akışı dolduramaz). Kendi gönderin ve iki yönlü engellenen yazarlar çıkarılır; kitle kuralları aynen geçerlidir
+  (giriş yapmamış ziyaretçi yalnız "Herkes" gönderilerini, kişiselleştirme olmadan görür). Sıralanmış liste 30 dk
+  saklanır; aşağı kaydırırken sıra değişmez, tekrar ya da kayıp olmaz. Katsayılar `folyo.feed.*` ile ayarlanır.
+  "En yeni" sekmesi tarihe göre kalır.
 - **Medya (kalite korunur):** Kayıt veritabanında (`media_assets`), dosya depoda. Fotoğraf yeniden kodlanmaz: JPEG/PNG/WebP
   dosyasından yalnız konum ve kişisel meta veri blokları çıkarılır, renk profili ve yön bilgisi kalır. Listeler için
   480/1600 px kopyalar ayrıca üretilir; dokununca orijinal açılır. Video `ffmpeg -c copy` ile yeniden paketlenir (yeniden
