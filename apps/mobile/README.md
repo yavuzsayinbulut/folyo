@@ -8,6 +8,11 @@ Folyo sayfa sahipleri için Expo/React Native mobil uygulaması.
 - Expo Router
 - Secure Store ile oturum token'ı
 - Expo Notifications ve Expo Widgets
+- expo-image (fotoğraf, SVG sticker), expo-video (videolar), expo-image-picker (dosyalar kalite 1 ile, yeniden sıkıştırılmadan)
+- Anlık sohbet: uygulama ön plandayken Bearer token'lı tek WebSocket; arka plana geçince kapanır, yeni mesaj bildirim olarak gelir
+
+Sekmeler: Sayfa, Keşfet (gönderiler, yeni gönderi), Sohbetler (istekler, arşiv, sohbet ayarları), Paylaş, Profil
+(profil fotoğrafı). Yerel modül eklendiğinde geliştirme derlemesi yenilenir: `npx expo run:android`.
 
 ## Lokal çalıştırma
 

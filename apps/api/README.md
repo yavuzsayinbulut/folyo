@@ -7,6 +7,8 @@ Folyo portfolyo platformunun Spring Boot API'si.
 - Java 25 ve Spring Boot 4.1
 - PostgreSQL 18, Spring Data JPA ve Flyway
 - Spring Security, OAuth2 ve mobil Bearer token
+- Spring WebSocket (anlık sohbet), AWS SDK v2 (S3 uyumlu depo), TwelveMonkeys WebP
+- ffmpeg/ffprobe (video paketleme ve kapak karesi; Docker imajında kurulu, lokalde `brew install ffmpeg`)
 - Testcontainers ile entegrasyon testleri
 
 ## Lokal çalıştırma
@@ -29,6 +31,7 @@ kurmadan kullanılabilen geliştirici girişi açıktır.
 Tüm ayarlar ortam değişkeniyle verilir; tam liste `.env.example` içindedir.
 Boş bırakılan sağlayıcı kapalı kalır, uygulama yine açılır.
 
+- `FOLYO_ADMIN_EMAILS` (yönetici e-postaları; SMS/e-posta entegrasyonları ve doğrulama kuralları `/admin` panelinden seçilir)
 - `FOLYO_LOGIN_GOOGLE_CLIENT_ID/SECRET`, `FOLYO_LOGIN_GITHUB_CLIENT_ID/SECRET` (giriş)
 - `FOLYO_GITHUB_TOKEN`
 - `FOLYO_LASTFM_API_KEY`
@@ -47,8 +50,9 @@ anahtarını her çalıştırmada rastgele üretir.
 Flyway migration'ları `src/main/resources/db/migration` altındadır. Yeni şema değişikliği
 mevcut migration değiştirilmeden yeni bir sürüm olarak eklenir.
 
-Spotify ve Strava token'ları AES-256-GCM ile şifrelenir. Galeri görselleri yeniden
-kodlanarak EXIF ve GPS metadata'sından temizlenir. Push bildirimleri transactional outbox
+Spotify ve Strava token'ları AES-256-GCM ile şifrelenir. Fotoğraf ve videolar yeniden
+kodlanmadan saklanır; yalnız konum ve kişisel meta veri blokları çıkarılır. Dosyalar sunucu
+diskinde ya da admin panelinden seçilen S3 uyumlu depoda, kayıtları `media_assets` tablosundadır. Push bildirimleri transactional outbox
 ve `FOR UPDATE SKIP LOCKED` ile dağıtılır.
 
 ## Test
@@ -57,4 +61,5 @@ ve `FOR UPDATE SKIP LOCKED` ile dağıtılır.
 ./mvnw test
 ```
 
-Testler Docker üzerinde gerçek PostgreSQL ile çalışır.
+Testler Docker üzerinde gerçek PostgreSQL (S3 testi için MinIO) ile çalışır; video testleri
+için `ffmpeg` kurulu olmalıdır.

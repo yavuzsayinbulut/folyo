@@ -5,8 +5,12 @@ Tek sunucu, Docker Compose. Dışarıya yalnız Caddy açılır (80/443, otomati
 ```
 İnternet ──> Caddy :443 ──┬─ /api/*, /oauth2/*, /login/oauth2/*  ──> api:8080 (Spring Boot)
                           └─ diğer her şey                        ──> web:3000 (Next.js)
-                                api ──> db:5432 (Postgres 18), media volume (fotoğraflar)
+                                api ──> db:5432 (Postgres 18), media volume (fotoğraf/video) ya da S3 uyumlu depo
 ```
+
+`/api/realtime` (anlık sohbet WebSocket'i) da Caddy üzerinden API'ye gider. Video yüklemesi 200 MB'a kadar kabul edilir
+(`Caddyfile` yalnız bu yol için büyük gövdeye izin verir). Fotoğraf/video deposu yönetim panelinden seçilir; S3 kovası
+herkese kapalı kalmalıdır, dosyalar API üzerinden izin kontrolüyle sunulur.
 
 ## 1. Bir kez yapılacaklar
 
@@ -24,7 +28,11 @@ Tek sunucu, Docker Compose. Dışarıya yalnız Caddy açılır (80/443, otomati
    chmod 600 .env
    ```
    `FOLYO_TOKEN_KEY` değişirse kayıtlı Spotify/Strava bağlantıları çözülemez; anahtarı parola yöneticisinde de sakla.
-5. **İmajlar**: `main`'e her push'ta GitHub Actions (`.github/workflows/api.yml`, `web.yml`) imajları `ghcr.io/<hesap>/folyo-api` ve `folyo-web` olarak yayınlar.
+5. **Yönetici**: `.env` içinde `FOLYO_ADMIN_EMAILS` (virgülle) tanımla. Bu e-postayla giriş yapıp e-postasını doğrulayan
+   hesap `/admin` paneline girer: SMS (Twilio / Netgsm) ve e-posta (SMTP) entegrasyonlarını seçer, parolaları girer
+   (sunucuda şifreli saklanır, ekrana geri gelmez), deneme gönderir ve mesaj/yorum için hangi doğrulamaların zorunlu
+   olduğuna karar verir. Telefon doğrulaması zorunluyken SMS kapalıysa panel uyarır.
+6. **İmajlar**: `main`'e her push'ta GitHub Actions (`.github/workflows/api.yml`, `web.yml`) imajları `ghcr.io/<hesap>/folyo-api` ve `folyo-web` olarak yayınlar.
    Repo private ise sunucuda bir kez: `docker login ghcr.io` (yalnız `read:packages` yetkili token ile).
 
 ## 2. Çalıştırma ve güncelleme

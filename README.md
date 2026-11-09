@@ -2,7 +2,9 @@
 
 Herkesin kendi sayfasını açıp sosyal hesaplarını bento kartlarla dizdiği kişisel portfolyo platformu.
 Sayfa sahibi altı şablondan (Klasik, Samimi, Kurumsal, Minimal, Gece, Editoryal) birini ve bir vurgu rengi seçerek
-sayfasına karakter verir.
+sayfasına karakter verir. Kısa gönderiler (fotoğraf/video ile) paylaşır, Keşfet'te doğrulanmış hesapların paylaşımlarını
+görür, WhatsApp benzeri anlık sohbet eder (çevrimiçi, yazıyor, mavi tik, sticker). Mesaj ve yorum için e-postası ve
+telefonu doğrulanmış olmak gerekir. Sayfa sahibi kimin neyi görebileceğini ve kimin yazabileceğini kendisi ayarlar.
 
 | Klasör | Ne | Teknoloji |
 |---|---|---|
@@ -77,17 +79,49 @@ GitHub Actions her uygulamayı yalnız kendi klasörü değiştiğinde test eder
 
 Tek sunucu, Docker Compose ve Caddy. Adımlar, yedekleme ve güvenlik notları [`deploy/README.md`](deploy/README.md) içinde.
 
+## Doğrulama, mesajlar ve gizlilik
+
+- **Doğrulama:** E-posta ve telefon 6 haneli kodla doğrulanır (10 dk geçerli, 5 yanlış denemede yanar, kod yalnız özet olarak
+  saklanır). Google/GitHub'ın doğruladığı e-posta ayrıca kod istemez. Bir telefon yalnız bir hesapta doğrulanabilir.
+- **Yönetim (`/admin`):** `FOLYO_ADMIN_EMAILS` listesindeki doğrulanmış e-posta yönetici olur. SMS (Twilio, Netgsm) ve
+  e-posta (SMTP) entegrasyonu panelden seçilir; parolalar şifreli saklanır. Hangi doğrulamaların zorunlu olduğu da panelden
+  belirlenir. Geliştirmede kodlar gönderilmez, API loguna yazılır (`admin@folyo.test` geliştirme yöneticisidir).
+- **İletişim kutusu → sohbet:** Doğrulanmış ziyaretçi sayfadaki kutudan sohbet başlatır; sahip "Onayımdan sonra" seçtiyse
+  sohbet İstekler'e düşer ve kabul edilene kadar en fazla 5 mesaj gidebilir. Gönderenin e-postası ve telefonu gösterilmez.
+- **Gizlilik:** Sayfa, konum, yerel saat, aktivite ve defter için "Herkes / Giriş yapanlar / Doğrulanmışlar / Yalnız ben";
+  her kart için ayrı kitle; yorum ve mesaj için "Doğrulanmış herkes / Onayımdan sonra / Kimse". Kurallar sunucuda uygulanır;
+  sayfa içeriği bakan kişiye göre üretilir, bağlantı önizlemeleri hep anonim bakışla oluşur.
+
+## Gönderiler, medya ve sohbet
+
+- **Gönderiler:** En fazla 500 karakter, 4 fotoğraf ya da 1 video. Kitle: Herkes / Giriş yapanlar / Doğrulanmışlar.
+  Profil akışı ve Keşfet (`/kesfet`, yalnız doğrulanmış yazarlar), beğeni, tek seviye yanıt (sayfa sahibinin yorum
+  kuralına uyar, "onayımdan sonra" ise onay bekler). Akışlar `(created_at, id)` imleciyle sayfalanır; OFFSET yoktur.
+- **Medya (kalite korunur):** Kayıt veritabanında (`media_assets`), dosya depoda. Fotoğraf yeniden kodlanmaz: JPEG/PNG/WebP
+  dosyasından yalnız konum ve kişisel meta veri blokları çıkarılır, renk profili ve yön bilgisi kalır. Listeler için
+  480/1600 px kopyalar ayrıca üretilir; dokununca orijinal açılır. Video `ffmpeg -c copy` ile yeniden paketlenir (yeniden
+  kodlama yok), meta veri silinir, kapak karesi çıkarılır; oynatıcı aralıklı (Range) okur. Profil fotoğrafı kare
+  kopyalarla sunulur. Medya izinleri her istekte kontrol edilir (gönderiyi gören görür, sohbet medyasını yalnız iki taraf).
+- **Depo:** Yönetim panelinden sunucu diski ya da S3 uyumlu depo (AWS S3, R2, MinIO…) seçilir; eski dosyalar yüklendikleri
+  depoda okunmaya devam eder. Kullanılmayan yüklemeler saatlik temizlenir.
+- **Sohbet:** Mesajlar HTTP ile kaydedilir (istemci kimliğiyle tekrar denemede çift kayıt olmaz); `/api/realtime`
+  WebSocket'i yeni mesaj, tik, "yazıyor" ve çevrimiçi bilgisini anında taşır. Tek tik: sunucuda; çift: karşı cihaza
+  ulaştı; mavi: okundu (iki taraf da okundu bilgisini açıksa). Son görülme: Herkes / Yalnız yazıştıklarım / Hiç kimse
+  (gizleyen başkasınınkini de göremez). Herkesten silme 48 saat içinde. Uygulama kapalıysa push bildirimi gider.
+- **Sticker:** İki hazır paket (özgün çizimler) ve kişinin kendi şeffaf PNG/WebP sticker'ları.
+
 ## Güvenlik ve gizlilik özeti
 
 - Ziyaretçi IP'si saklanmaz; tekil sayım günlük tuzlu özetle yapılır, tuz ertesi gün silinir.
 - Avatar ve albüm kapakları sunucu üzerinden gösterilir; ziyaretçinin tarayıcısı üçüncü taraflara istek atmaz.
 - Spotify/Strava token'ları AES-256-GCM ile şifrelenir; Strava'da yalnız herkese açık aktiviteler gösterilir.
-- Yüklenen fotoğraflar yeniden kodlanır; GPS dahil tüm metadata silinir.
+- Yüklenen fotoğraf ve videolardan GPS dahil kişisel meta veri silinir; görüntü/ses verisine dokunulmaz.
 - Yazma uçlarında IP başına hız sınırı, oturumlar veritabanında, prod çerezleri `Secure; HttpOnly; SameSite=Lax`.
 - Hesap silme web'de ve mobilde vardır; hesapla birlikte tüm veriler, dosyalar ve oturumlar silinir.
 
 ## Veri modeli
 
-`users` · `profiles` (kullanıcı adı, tema) · `cards` (tipe özel ayar `jsonb`) · `media` · `guestbook_entries` ·
-`connections` (şifreli token) · `activity_events` · günlük istatistik tabloları · `api_tokens` · push outbox ·
-`spring_session`. Şema `apps/api/src/main/resources/db/migration` altındadır; her değişiklik yeni bir Flyway migration'ıdır.
+`users` · `profiles` (kullanıcı adı, tema) · `cards` (tipe özel ayar `jsonb`) · `media` · `media_assets` · `posts` ·
+`post_media` · `post_likes` · `conversations` · `conversation_members` (teslim/okundu sıra no) · `chat_messages` ·
+`guestbook_entries` · `connections` (şifreli token) · `activity_events` · günlük istatistik tabloları · `api_tokens` ·
+push outbox · `platform_settings` · `spring_session`. Şema `apps/api/src/main/resources/db/migration` altındadır; her değişiklik yeni bir Flyway migration'ıdır.
