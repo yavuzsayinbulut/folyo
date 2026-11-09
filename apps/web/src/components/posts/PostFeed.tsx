@@ -15,6 +15,7 @@ export function PostFeed({
   signedIn,
   canPost,
   empty,
+  end,
 }: {
   initial: PostPage;
   /** Devam sayfalari icin API yolu (ornegin /api/public/posts). */
@@ -22,6 +23,8 @@ export function PostFeed({
   signedIn: boolean;
   canPost: boolean;
   empty: string;
+  /** Akisin sonuna gelindiginde gosterilecek not. */
+  end?: string;
 }) {
   const [posts, setPosts] = useState(initial.posts);
   const [next, setNext] = useState(initial.next);
@@ -59,6 +62,7 @@ export function PostFeed({
           ))}
         </div>
       )}
+      {!next && end && posts.length > 0 && <p className="text-center text-sm text-ink-3">{end}</p>}
       {next && (
         <button onClick={more} disabled={loading} className="mx-auto h-10 rounded-xl border border-line-strong px-4 text-sm hover:bg-surface-2 disabled:opacity-60">
           {loading ? "Yükleniyor…" : failed ? "Yüklenemedi, tekrar dene" : "Daha fazla göster"}
