@@ -1,5 +1,7 @@
 package app.folyo.live;
 
+import app.folyo.auth.FolyoPrincipal;
+import app.folyo.access.CardAccess;
 import app.folyo.card.Card;
 import app.folyo.card.CardRepository;
 import app.folyo.card.CardType;
@@ -65,9 +67,10 @@ public class LiveCardService {
     private final LastFmClient lastfm;
     private final SpotifyClient spotify;
     private final StravaClient strava;
+    private final CardAccess cardAccess;
 
     public LiveCardService(CardRepository cards, ConnectionService connections, GitHubClient github,
-            RedditClient reddit, LastFmClient lastfm, SpotifyClient spotify, StravaClient strava) {
+            RedditClient reddit, LastFmClient lastfm, SpotifyClient spotify, StravaClient strava, CardAccess cardAccess) {
         this.cards = cards;
         this.connections = connections;
         this.github = github;
@@ -75,11 +78,13 @@ public class LiveCardService {
         this.lastfm = lastfm;
         this.spotify = spotify;
         this.strava = strava;
+        this.cardAccess = cardAccess;
     }
 
-    public LiveView forPublicCard(UUID cardId) {
+    /** Kart gizliyse, kitlesi bakan kisiyi kapsamiyorsa ya da sayfa ona kapaliysa kart "yok" gibi doner. */
+    public LiveView forPublicCard(UUID cardId, FolyoPrincipal principal) {
         Card card = cards.findById(cardId)
-                .filter(c -> c.isVisible() && c.getType().isLive())
+                .filter(c -> c.getType().isLive() && cardAccess.canSee(c, principal))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kart bulunamadı"));
         String key = cacheKey(card);
         Cache<String, LiveData> cache = isMusic(card.getType()) ? music : profiles;

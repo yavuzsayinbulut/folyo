@@ -36,15 +36,16 @@ public class GuestbookController {
     }
 
     @GetMapping("/api/public/profiles/{username}/guestbook")
-    public List<GuestbookEntryView> visible(@PathVariable String username) {
-        return guestbookService.visibleEntries(username);
+    public List<GuestbookEntryView> visible(@PathVariable String username,
+            @AuthenticationPrincipal FolyoPrincipal principal) {
+        return guestbookService.visibleEntries(username, principal);
     }
 
     @PostMapping("/api/profiles/{username}/guestbook")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, UUID> write(@AuthenticationPrincipal FolyoPrincipal principal, @PathVariable String username,
             @Valid @RequestBody WriteRequest body) {
-        return Map.of("id", guestbookService.write(username, principal.userId(), body.body()));
+        return Map.of("id", guestbookService.write(username, principal, body.body()));
     }
 
     @GetMapping("/api/me/guestbook")

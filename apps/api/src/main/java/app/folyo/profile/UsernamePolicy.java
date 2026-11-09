@@ -14,7 +14,8 @@ public final class UsernamePolicy {
     private static final Set<String> RESERVED = Set.of(
             "about", "admin", "api", "app", "assets", "blog", "dashboard", "dev", "edit", "explore", "folyo",
             "help", "home", "login", "logout", "me", "new", "oauth2", "privacy", "public", "settings", "signup",
-            "static", "support", "terms", "www", "_next", "actuator", "gizlilik", "kosullar", "mobile-login",
+            "static", "support", "terms", "www", "_next", "actuator", "gizlilik", "kosullar", "mobile-login", "hesap", "mesajlar", "dogrulama",
+            "kesfet", "sohbet", "sohbetler", "gonderi", "posts", "chat", "stickers", "realtime",
             "robots.txt", "sitemap.xml", "favicon.ico", "icon.png", "apple-icon.png", "manifest.json",
             "manifest.webmanifest", "opengraph-image", "twitter-image");
 

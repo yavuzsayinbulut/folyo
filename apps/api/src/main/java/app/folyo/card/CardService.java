@@ -1,5 +1,6 @@
 package app.folyo.card;
 
+import app.folyo.access.Audience;
 import app.folyo.connection.ConnectionProvider;
 import app.folyo.connection.ConnectionService;
 import app.folyo.media.MediaRepository;
@@ -48,7 +49,7 @@ public class CardService {
         this.mediaStorage = mediaStorage;
     }
 
-    public record CardChanges(CardSize size, Boolean visible, Map<String, Object> config) {
+    public record CardChanges(CardSize size, Boolean visible, Audience audience, Map<String, Object> config) {
     }
 
     @Transactional(readOnly = true)
@@ -85,10 +86,16 @@ public class CardService {
         if (changes.visible() != null) {
             card.changeVisibility(changes.visible());
         }
+        if (changes.audience() != null) {
+            if (changes.audience() == Audience.ONLY_ME) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kartı yalnız kendin görmek için gizle");
+            }
+            card.changeAudience(changes.audience());
+        }
         if (changes.config() != null) {
             card.replaceConfig(normalizeConfig(card.getType(), changes.config()));
         }
-        if (changes.visible() != null || changes.config() != null) {
+        if (changes.visible() != null || changes.audience() != null || changes.config() != null) {
             announceIfActivitySource(card);
         }
         return card;

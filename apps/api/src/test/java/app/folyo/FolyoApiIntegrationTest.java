@@ -49,6 +49,9 @@ class FolyoApiIntegrationTest {
     @Autowired
     UserService userService;
 
+    @Autowired
+    org.springframework.jdbc.core.simple.JdbcClient jdbcClient;
+
     // --- giris ve yetki ---
 
     @Test
@@ -269,6 +272,7 @@ class FolyoApiIntegrationTest {
     private RequestPostProcessor newUser() {
         String subject = UUID.randomUUID().toString();
         User user = userService.signIn("test", subject, null, "Test " + subject.substring(0, 6), null);
+        TestUsers.verify(jdbcClient, user.getId());
         var principal = new FolyoPrincipal(user.getId(), user.getName());
         return authentication(UsernamePasswordAuthenticationToken.authenticated(principal, null,
                 List.of(new SimpleGrantedAuthority("ROLE_USER"))));

@@ -62,7 +62,17 @@ public class ProfileService {
         Profile profile = requireByUserId(userId);
         profile.updateDetails(details.displayName().strip(), blankToNull(details.bio()),
                 blankToNull(details.location()), validTimezone(details.timezone()), blankToNull(details.status()),
-                details.visibility() == null ? ProfileVisibility.PUBLIC : details.visibility());
+                details.visibility() == null ? profile.getVisibility() : details.visibility());
+        return profile;
+    }
+
+    @Transactional
+    public Profile changePrivacy(UUID userId, PrivacySettings privacy) {
+        if (privacy == null || !privacy.complete()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tüm gizlilik seçimlerini yap");
+        }
+        Profile profile = requireByUserId(userId);
+        profile.applyPrivacy(privacy);
         return profile;
     }
 

@@ -40,11 +40,11 @@ public class GuestbookEntry {
     protected GuestbookEntry() {
     }
 
-    GuestbookEntry(UUID profileId, UUID authorUserId, String body) {
+    GuestbookEntry(UUID profileId, UUID authorUserId, String body, GuestbookStatus status) {
         this.profileId = profileId;
         this.authorUserId = authorUserId;
         this.body = body;
-        this.status = GuestbookStatus.VISIBLE;
+        this.status = status;
     }
 
     void changeStatus(GuestbookStatus status) {

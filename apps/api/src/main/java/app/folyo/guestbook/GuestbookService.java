@@ -1,7 +1,12 @@
 package app.folyo.guestbook;
 
+import app.folyo.access.InteractionPolicy;
+import app.folyo.access.Viewer;
+import app.folyo.access.ViewerService;
+import app.folyo.auth.FolyoPrincipal;
 import app.folyo.auth.User;
 import app.folyo.auth.UserRepository;
+import app.folyo.message.BlockRepository;
 import app.folyo.notification.NotificationService;
 import app.folyo.profile.Profile;
 import app.folyo.profile.ProfileService;
@@ -28,18 +33,27 @@ public class GuestbookService {
     private final ProfileService profileService;
     private final UserRepository users;
     private final NotificationService notifications;
+    private final ViewerService viewers;
+    private final BlockRepository blocks;
 
     public GuestbookService(GuestbookRepository entries, ProfileService profileService, UserRepository users,
-            NotificationService notifications) {
+            NotificationService notifications, ViewerService viewers, BlockRepository blocks) {
         this.entries = entries;
         this.profileService = profileService;
         this.users = users;
         this.notifications = notifications;
+        this.viewers = viewers;
+        this.blocks = blocks;
     }
 
+    /** Ziyaretcinin gorebilecegi mesajlar: sayfa ve defter kitlesi ziyaretciye aciksa. */
     @Transactional(readOnly = true)
-    public List<GuestbookEntryView> visibleEntries(String username) {
+    public List<GuestbookEntryView> visibleEntries(String username, FolyoPrincipal principal) {
         Profile profile = profileService.requireByUsername(username);
+        Viewer viewer = viewers.viewer(principal, profile);
+        if (!viewer.sees(profile.privacy().profile()) || !viewer.sees(profile.privacy().guestbook())) {
+            return List.of();
+        }
         return entries.findViews(profile.getId(), GuestbookStatus.VISIBLE, PAGE);
     }
 
@@ -48,16 +62,31 @@ public class GuestbookService {
         return entries.findAllViews(profileService.requireByUserId(ownerUserId).getId(), PAGE);
     }
 
+    /** Yazan kisi giris yapmis ve dogrulanmis olmali; sahip yorumlari kapatabilir ya da onaya baglayabilir. */
     @Transactional
-    public UUID write(String username, UUID authorUserId, String body) {
+    public UUID write(String username, FolyoPrincipal principal, String body) {
         // Bos mesaj @NotBlank ile yakalanir; uzunluk alt siniri burada, tek mesajla.
         if (body.strip().length() < 3) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mesaj en az 3 karakter olmalı");
         }
+        UUID authorUserId = principal.userId();
         Profile profile = profileService.requireByUsername(username);
         // Yazarin satiri kilitlenir: ayni anda gelen istekler sayimi birlikte gecip siniri asamaz.
         User author = users.lockById(authorUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+        Viewer viewer = viewers.viewer(principal, profile);
+        if (!viewer.sees(profile.privacy().profile())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil bulunamadı");
+        }
+        InteractionPolicy policy = profile.privacy().comments();
+        switch (viewer.interaction(policy, blocks.isBlocked(profile.getUserId(), authorUserId))) {
+            case ALLOWED, OWNER -> {
+            }
+            case VERIFY -> throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Deftere yazmak için önce hesabını doğrula");
+            case CLOSED -> throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu sayfa yorumlara kapalı");
+            default -> throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu sayfaya yazamazsın");
+        }
         Instant hourAgo = Instant.now().minus(Duration.ofHours(1));
         if (entries.countByProfileIdAndAuthorUserIdAndCreatedAtAfter(profile.getId(), authorUserId, hourAgo)
                 >= MAX_ENTRIES_PER_HOUR
@@ -65,9 +94,14 @@ public class GuestbookService {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "Çok sık mesaj gönderdin, biraz sonra tekrar dene");
         }
-        GuestbookEntry entry = entries.save(new GuestbookEntry(profile.getId(), authorUserId, body.strip()));
-        String authorName = author.getName();
-        notifications.enqueueGuestbookMessage(profile, authorUserId, authorName, entry.getId(), body.strip());
+        boolean pending = policy == InteractionPolicy.APPROVAL && !viewer.owner();
+        GuestbookEntry entry = entries.save(new GuestbookEntry(profile.getId(), authorUserId, body.strip(),
+                pending ? GuestbookStatus.PENDING : GuestbookStatus.VISIBLE));
+        if (pending) {
+            notifications.enqueueGuestbookPending(profile, author.getName(), entry.getId());
+        } else {
+            notifications.enqueueGuestbookMessage(profile, authorUserId, author.getName(), entry.getId(), body.strip());
+        }
         return entry.getId();
     }
 

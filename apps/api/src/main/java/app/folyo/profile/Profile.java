@@ -8,6 +8,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import app.folyo.access.Audience;
+import app.folyo.access.InteractionPolicy;
 import java.time.Instant;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
@@ -46,6 +48,34 @@ public class Profile {
     @Enumerated(EnumType.STRING)
     private ProfileAccent accent;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "profile_audience", nullable = false)
+    private Audience profileAudience;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "location_audience", nullable = false)
+    private Audience locationAudience;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "local_time_audience", nullable = false)
+    private Audience localTimeAudience;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "activity_audience", nullable = false)
+    private Audience activityAudience;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "guestbook_audience", nullable = false)
+    private Audience guestbookAudience;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "comment_policy", nullable = false)
+    private InteractionPolicy commentPolicy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "message_policy", nullable = false)
+    private InteractionPolicy messagePolicy;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -63,6 +93,23 @@ public class Profile {
         this.displayName = displayName;
         this.visibility = ProfileVisibility.PUBLIC;
         this.theme = ProfileTheme.CLASSIC;
+        applyPrivacy(PrivacySettings.DEFAULT);
+    }
+
+    public void applyPrivacy(PrivacySettings p) {
+        this.visibility = p.indexable() ? ProfileVisibility.PUBLIC : ProfileVisibility.UNLISTED;
+        this.profileAudience = p.profile();
+        this.locationAudience = p.location();
+        this.localTimeAudience = p.localTime();
+        this.activityAudience = p.activity();
+        this.guestbookAudience = p.guestbook();
+        this.commentPolicy = p.comments();
+        this.messagePolicy = p.messages();
+    }
+
+    public PrivacySettings privacy() {
+        return new PrivacySettings(visibility == ProfileVisibility.PUBLIC, profileAudience, locationAudience,
+                localTimeAudience, activityAudience, guestbookAudience, commentPolicy, messagePolicy);
     }
 
     public void changeAppearance(ProfileTheme theme, ProfileAccent accent) {

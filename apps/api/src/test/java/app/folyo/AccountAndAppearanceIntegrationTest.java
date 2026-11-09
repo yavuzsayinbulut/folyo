@@ -173,6 +173,7 @@ class AccountAndAppearanceIntegrationTest {
     private Owner newUser() {
         String subject = UUID.randomUUID().toString();
         User user = userService.signIn("test", subject, null, "Test " + subject.substring(0, 6), null);
+        TestUsers.verify(jdbc, user.getId());
         var principal = new FolyoPrincipal(user.getId(), user.getName());
         return new Owner(user.getId(), authentication(UsernamePasswordAuthenticationToken.authenticated(principal, null,
                 List.of(new SimpleGrantedAuthority("ROLE_USER")))));

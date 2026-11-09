@@ -1,8 +1,10 @@
 package app.folyo.profile;
 
+import app.folyo.access.ViewerService;
 import app.folyo.auth.FolyoPrincipal;
 import app.folyo.auth.User;
 import app.folyo.auth.UserRepository;
+import app.folyo.auth.UserService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -25,21 +27,27 @@ public class MeController {
 
     private final ProfileService profileService;
     private final UserRepository users;
+    private final ViewerService viewers;
+    private final UserService userService;
 
-    public MeController(ProfileService profileService, UserRepository users) {
+    public MeController(ProfileService profileService, UserRepository users, ViewerService viewers,
+            UserService userService) {
+        this.userService = userService;
         this.profileService = profileService;
         this.users = users;
+        this.viewers = viewers;
     }
 
-    public record UserView(UUID id, String name, String email, String avatarUrl) {
+    public record UserView(UUID id, String name, String email, String avatarUrl, boolean admin, boolean verified) {
     }
 
     public record ProfileView(UUID id, String username, String displayName, String bio, String location,
-            String timezone, String status, ProfileVisibility visibility, ProfileTheme theme, ProfileAccent accent) {
+            String timezone, String status, ProfileVisibility visibility, ProfileTheme theme, ProfileAccent accent,
+            PrivacySettings privacy) {
 
         static ProfileView from(Profile p) {
             return new ProfileView(p.getId(), p.getUsername(), p.getDisplayName(), p.getBio(), p.getLocation(),
-                    p.getTimezone(), p.getStatus(), p.getVisibility(), p.getTheme(), p.getAccent());
+                    p.getTimezone(), p.getStatus(), p.getVisibility(), p.getTheme(), p.getAccent(), p.privacy());
         }
     }
 
@@ -68,7 +76,13 @@ public class MeController {
         User user = users.findById(principal.userId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
         ProfileView profile = profileService.findByUserId(principal.userId()).map(ProfileView::from).orElse(null);
-        return new MeView(new UserView(user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl()), profile);
+        return new MeView(new UserView(user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl(),
+                userService.isAdmin(user), viewers.status(user.getId()).verified()), profile);
+    }
+
+    @PutMapping("/privacy")
+    public ProfileView privacy(@AuthenticationPrincipal FolyoPrincipal principal, @RequestBody PrivacySettings body) {
+        return ProfileView.from(profileService.changePrivacy(principal.userId(), body));
     }
 
     @PostMapping("/profile")

@@ -1,5 +1,9 @@
 package app.folyo.activity;
 
+import app.folyo.access.Viewer;
+import app.folyo.access.ViewerService;
+import app.folyo.auth.FolyoPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import app.folyo.card.Card;
 import app.folyo.card.CardRepository;
 import app.folyo.card.CardType;
@@ -21,7 +25,11 @@ public class ActivityController {
     private final CardRepository cards;
     private final ActivityEventRepository events;
 
-    public ActivityController(ProfileService profileService, CardRepository cards, ActivityEventRepository events) {
+    private final ViewerService viewers;
+
+    public ActivityController(ProfileService profileService, CardRepository cards, ActivityEventRepository events,
+            ViewerService viewers) {
+        this.viewers = viewers;
         this.profileService = profileService;
         this.cards = cards;
         this.events = events;
@@ -30,12 +38,20 @@ public class ActivityController {
     public record ActivityView(UUID id, String provider, String kind, String title, String url, Instant occurredAt) {
     }
 
-    /** Yalniz su an gorunur karti olan saglayicilarin olaylari doner; kart gizlenince akistan da hemen duser. */
+    /**
+     * Yalniz bakan kisinin gorebildigi kartlarin saglayicilarinin olaylari doner; kart gizlenince ya da kitlesi
+     * daralinca akistan da hemen duser. Sahip aktiviteyi kapattiysa bos liste.
+     */
     @GetMapping("/api/public/profiles/{username}/activity")
-    public List<ActivityView> activity(@PathVariable String username) {
+    public List<ActivityView> activity(@PathVariable String username, @AuthenticationPrincipal FolyoPrincipal principal) {
         Profile profile = profileService.requireByUsername(username);
+        Viewer viewer = viewers.viewer(principal, profile);
+        if (!viewer.sees(profile.privacy().profile()) || !viewer.sees(profile.privacy().activity())) {
+            return List.of();
+        }
         Set<String> providers = cards.findByProfileIdAndVisibleTrueAndTypeIn(profile.getId(), CardType.ACTIVITY_SOURCES)
-                .stream().map(Card::getType).map(CardType::name).collect(Collectors.toSet());
+                .stream().filter(card -> viewer.sees(card.getAudience()))
+                .map(Card::getType).map(CardType::name).collect(Collectors.toSet());
         if (providers.isEmpty()) {
             return List.of();
         }

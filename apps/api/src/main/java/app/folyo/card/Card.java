@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import app.folyo.access.Audience;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -40,6 +41,11 @@ public class Card {
 
     @Column(name = "is_visible", nullable = false)
     private boolean visible;
+
+    /** Gorunur kartin kimlere gosterilecegi (gizli kart yalniz sahibine). */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Audience audience = Audience.EVERYONE;
 
     /** Tipe ozel ayarlar. Yazilmadan once CardService.normalizeConfig'ten gecer. */
     @JdbcTypeCode(SqlTypes.JSON)
@@ -78,6 +84,10 @@ public class Card {
         this.visible = visible;
     }
 
+    void changeAudience(Audience audience) {
+        this.audience = audience;
+    }
+
     void replaceConfig(Map<String, Object> config) {
         this.config = config;
     }
@@ -104,6 +114,10 @@ public class Card {
 
     public boolean isVisible() {
         return visible;
+    }
+
+    public Audience getAudience() {
+        return audience;
     }
 
     public Map<String, Object> getConfig() {

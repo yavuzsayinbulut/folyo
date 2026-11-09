@@ -1,5 +1,6 @@
 package app.folyo.card;
 
+import app.folyo.access.Audience;
 import app.folyo.auth.FolyoPrincipal;
 import app.folyo.media.MediaService;
 import jakarta.validation.Valid;
@@ -36,7 +37,7 @@ public class CardController {
             Map<String, Object> config) {
     }
 
-    public record UpdateRequest(CardSize size, Boolean visible, Map<String, Object> config) {
+    public record UpdateRequest(CardSize size, Boolean visible, Audience audience, Map<String, Object> config) {
     }
 
     public record ReorderRequest(@NotNull List<UUID> cardIds) {
@@ -57,7 +58,7 @@ public class CardController {
     @PatchMapping("/{cardId}")
     public CardView update(@AuthenticationPrincipal FolyoPrincipal principal, @PathVariable UUID cardId,
             @RequestBody UpdateRequest body) {
-        var changes = new CardService.CardChanges(body.size(), body.visible(), body.config());
+        var changes = new CardService.CardChanges(body.size(), body.visible(), body.audience(), body.config());
         Card card = cardService.update(principal.userId(), cardId, changes);
         return CardView.from(card, mediaService.viewsByCard(List.of(card)));
     }

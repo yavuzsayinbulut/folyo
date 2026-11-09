@@ -1,5 +1,7 @@
 package app.folyo.live;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import app.folyo.auth.FolyoPrincipal;
 import java.util.UUID;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +19,9 @@ public class LiveCardController {
     }
 
     @GetMapping("/api/public/cards/{cardId}/live")
-    public ResponseEntity<LiveCardService.LiveView> live(@PathVariable UUID cardId) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(liveCardService.forPublicCard(cardId));
+    public ResponseEntity<LiveCardService.LiveView> live(@PathVariable UUID cardId,
+            @AuthenticationPrincipal FolyoPrincipal principal) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(liveCardService.forPublicCard(cardId, principal));
     }
 }
