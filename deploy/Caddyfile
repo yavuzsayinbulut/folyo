@@ -5,10 +5,19 @@
 	# API ve OAuth donusleri dogrudan Spring'e; geri kalan her sey Next.js'e.
 	# Caddy, istemcinin gonderdigi X-Forwarded-For'u yok sayar ve gercek IP'yi yazar;
 	# API yalniz bu ic agdan erisilebilir oldugu icin basliga guvenmek guvenlidir.
+	# Video yuklemesi (en fazla 200 MB) ayri sinirla; diger istekler kucuk tutulur.
+	@video path /api/me/assets/videos
+	handle @video {
+		request_body {
+			max_size 205MB
+		}
+		reverse_proxy api:8080
+	}
+	# /api/realtime WebSocket'i de buradan gecer (Caddy baglanti yukseltmesini kendisi tasir).
 	@api path /api/* /oauth2/* /login/oauth2/*
 	handle @api {
 		request_body {
-			max_size 12MB
+			max_size 30MB
 		}
 		reverse_proxy api:8080
 	}
