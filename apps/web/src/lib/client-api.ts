@@ -4,10 +4,15 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Sunucunun makine icin verdigi neden (or. RULES_REQUIRED, SUSPENDED). */
+    public code?: string,
   ) {
     super(message);
   }
 }
+
+/** Kurallar kabul edilmeden yazilamaz; sayfadaki kurallar penceresi bu olayla acilir. */
+export const RULES_REQUIRED_EVENT = "folyo:rules-required";
 
 function readCookie(name: string): string | null {
   const match = document.cookie.split("; ").find((part) => part.startsWith(`${name}=`));
@@ -38,14 +43,17 @@ export async function api<T = void>(path: string, init: { method?: string; body?
   });
   if (!res.ok) {
     let message = "Bir şeyler ters gitti, tekrar dene";
+    let code: string | undefined;
     try {
       const problem = await res.json();
       if (problem?.detail) message = problem.detail;
+      if (typeof problem?.code === "string") code = problem.code;
     } catch {
       // gövde JSON degilse genel mesaj kalir
     }
     if (res.status === 401) message = "Önce giriş yap";
-    throw new ApiError(res.status, message);
+    if (code === "RULES_REQUIRED" && typeof window !== "undefined") window.dispatchEvent(new Event(RULES_REQUIRED_EVENT));
+    throw new ApiError(res.status, message, code);
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();

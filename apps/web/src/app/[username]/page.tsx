@@ -10,6 +10,7 @@ import { BentoGrid } from "@/components/CardTile";
 import { ContactBox } from "@/components/ContactBox";
 import { Guestbook } from "@/components/Guestbook";
 import { LocalTime } from "@/components/LocalTime";
+import { ReportButton } from "@/components/moderation/ReportDialog";
 import { PostFeed } from "@/components/posts/PostFeed";
 import { VisitTracker } from "@/components/VisitTracker";
 import { getActivity, getGuestbook, getMe, getPosts, getPublicPage } from "@/lib/server-api";
@@ -164,10 +165,13 @@ async function Profile({ params }: { params: PageProps<"/[username]">["params"] 
           )}
         </div>
 
-        <footer className="mt-10 text-center text-sm text-ink-3">
+        <footer className="mt-10 flex flex-col items-center gap-2 text-sm text-ink-3">
           <Link href="/" className="hover:text-ink">
             folyo ile kendi sayfanı aç
           </Link>
+          {me && !owner && (
+            <ReportButton target="PROFILE" targetId={page.username} title="Bu sayfayı şikayet et" label="Bu sayfayı şikayet et" showLabel className="text-xs hover:text-danger" />
+          )}
         </footer>
       </main>
     </div>

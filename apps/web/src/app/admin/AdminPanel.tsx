@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { IconAlertTriangle, IconDatabase, IconMail, IconMessage2, IconShieldCheck } from "@tabler/icons-react";
 import { api, ApiError } from "@/lib/client-api";
 import type { AdminSettings, EmailProvider, SmsProvider, StorageProvider } from "@/lib/types";
+import { ModerationPanel } from "./ModerationPanel";
 
 const field = "h-10 w-full rounded-xl border border-line-strong bg-bg px-3 text-sm outline-none focus:border-accent";
 const SECRET_PLACEHOLDER = "Kayıtlı — değiştirmek için yaz";
@@ -60,7 +61,7 @@ export function AdminPanel() {
         <h1 className="text-2xl font-semibold tracking-tight">Yönetim</h1>
         <Link href="/edit" className="text-sm text-ink-3 hover:text-ink">← Editör</Link>
       </div>
-      <p className="mt-2 text-ink-2">Doğrulama kuralları, kullanıcılara kod gönderen entegrasyonlar ve fotoğraf/video deposu. Değişiklikler hemen geçerli olur.</p>
+      <p className="mt-2 text-ink-2">Şikayetler ve moderasyon, doğrulama kuralları, kullanıcılara kod gönderen entegrasyonlar ve fotoğraf/video deposu. Değişiklikler hemen geçerli olur.</p>
 
       {settings.warnings.length > 0 && (
         <ul role="status" className="mt-6 flex flex-col gap-2">
@@ -74,6 +75,7 @@ export function AdminPanel() {
       )}
 
       <div className="mt-6 flex flex-col gap-6">
+        <ModerationPanel settings={settings} onSaved={setSettings} />
         <PolicySection settings={settings} onSaved={setSettings} />
         <SmsSection settings={settings} onSaved={setSettings} />
         <EmailSection settings={settings} onSaved={setSettings} />

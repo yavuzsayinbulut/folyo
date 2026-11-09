@@ -7,6 +7,7 @@ import type { GuestbookEntry, Interaction } from "@/lib/types";
 import { relativeTime as relative } from "@/lib/time";
 import { Avatar } from "./Avatar";
 import { InteractionNotice } from "./InteractionNotice";
+import { ReportButton } from "./moderation/ReportDialog";
 
 export function Guestbook({
   username,
@@ -106,15 +107,23 @@ export function Guestbook({
       ) : (
         <ul className="flex flex-col gap-4">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex gap-3">
+            <li key={entry.id} className="group flex gap-3">
               <Avatar name={entry.authorName} url={entry.authorAvatarUrl} size={32} />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm">
                   <span className="font-medium">{entry.authorName}</span>{" "}
                   <span className="text-ink-3" suppressHydrationWarning>{relative(entry.createdAt)}</span>
                 </p>
                 <p className="text-[15px] text-ink-2 break-words">{entry.body}</p>
               </div>
+              {interaction !== "SIGN_IN" && (
+                <ReportButton
+                  target="GUESTBOOK"
+                  targetId={entry.id}
+                  title="Defter yazısını şikayet et"
+                  className="size-7 shrink-0 justify-center rounded-full text-ink-3 opacity-0 hover:bg-surface-2 hover:text-danger focus:opacity-100 group-hover:opacity-100"
+                />
+              )}
             </li>
           ))}
         </ul>

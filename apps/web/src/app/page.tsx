@@ -113,6 +113,9 @@ export default function Home() {
         <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-ink-3">
           <span>folyo · tüm hesapların tek sayfada</span>
           <nav aria-label="Alt bilgi" className="flex gap-4">
+            <Link href="/kurallar" className="hover:text-ink">
+              Kurallar
+            </Link>
             <Link href="/gizlilik" className="hover:text-ink">
               Gizlilik
             </Link>

@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { IconArchive, IconArchiveOff, IconArrowLeft, IconBan, IconDotsVertical } from "@tabler/icons-react";
+import { IconArchive, IconArchiveOff, IconArrowLeft, IconBan, IconDotsVertical, IconFlag } from "@tabler/icons-react";
 import { api, ApiError } from "@/lib/client-api";
 import { useRealtime } from "@/lib/realtime";
 import { dayLabel, lastSeen, sameDay } from "@/lib/time";
 import type { ChatMessage, ChatThread, Conversation, Me } from "@/lib/types";
 import { Avatar } from "../Avatar";
 import { useConfirm } from "../ConfirmDialog";
+import { ReportDialog } from "../moderation/ReportDialog";
 import { ChatComposer, type Outgoing } from "./ChatComposer";
 import { type LocalMessage, MessageBubble } from "./MessageBubble";
 
@@ -49,6 +50,7 @@ export function ConversationPane({
   const [status, setStatus] = useState<"loading" | "ready" | "missing" | "failed">("loading");
   const [error, setError] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const lastRead = useRef(0);
@@ -305,6 +307,18 @@ export function ConversationPane({
                   <IconArchive size={17} aria-hidden="true" /> Arşivle
                 </button>
               )}
+              {other.username && (
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    setReporting(true);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2"
+                >
+                  <IconFlag size={17} aria-hidden="true" /> Şikayet et
+                </button>
+              )}
               <button role="menuitem" onClick={block} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-surface-2">
                 <IconBan size={17} aria-hidden="true" /> Engelle
               </button>
@@ -369,6 +383,9 @@ export function ConversationPane({
       )}
       <ChatComposer conversationId={id} onSend={(o) => send(o)} onError={setError} />
       {confirmDialog}
+      {reporting && other.username && (
+        <ReportDialog target="PROFILE" targetId={other.username} title={`${other.name} kişisini şikayet et`} onClose={() => setReporting(false)} />
+      )}
     </>
   );
 }

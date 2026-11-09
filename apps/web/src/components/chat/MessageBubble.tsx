@@ -7,6 +7,7 @@ import { clockTime } from "@/lib/time";
 import type { ChatMessage, Conversation } from "@/lib/types";
 import { RichText } from "../posts/PostCard";
 import { Lightbox, VideoPlayer } from "../media/MediaGrid";
+import { ReportButton } from "../moderation/ReportDialog";
 
 /** Istemcide henuz sunucuya ulasmamis mesaj; retry: basarisiz olursa ayni istemci kimligiyle yeniden gonderilecek icerik. */
 export type LocalMessage = ChatMessage & {
@@ -131,6 +132,14 @@ export function MessageBubble({
             </button>
           )}
         </div>
+      )}
+      {!mine && !message.deleted && message.id > 0 && (
+        <ReportButton
+          target="MESSAGE"
+          targetId={String(message.id)}
+          title="Mesajı şikayet et"
+          className="mb-1 size-7 justify-center rounded-full text-ink-3 opacity-0 hover:bg-surface-2 hover:text-danger focus:opacity-100 group-hover:opacity-100"
+        />
       )}
       {zoom && message.asset && <Lightbox media={[message.asset]} index={0} onIndex={() => undefined} onClose={() => setZoom(false)} />}
     </div>

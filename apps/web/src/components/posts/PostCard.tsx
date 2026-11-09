@@ -9,6 +9,7 @@ import type { Post } from "@/lib/types";
 import { Avatar } from "../Avatar";
 import { useConfirm } from "../ConfirmDialog";
 import { MediaGrid } from "../media/MediaGrid";
+import { ReportButton } from "../moderation/ReportDialog";
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+[^\s<.,;:!?)"'\]])/g;
 
@@ -130,6 +131,7 @@ export function PostCard({
           )}
         </header>
         {post.status === "PENDING" && <p className="mt-0.5 text-xs text-ink-3">Onay bekliyor · yalnız sen ve sayfa sahibi görüyor</p>}
+        {post.status === "HIDDEN" && <p className="mt-0.5 text-xs text-danger">İnceleniyor · şikayetler nedeniyle şimdilik gizlendi</p>}
         {post.body && (
           <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
             <RichText text={post.body} />
@@ -175,8 +177,16 @@ export function PostCard({
               <IconCheck size={16} aria-hidden="true" /> Onayla
             </button>
           )}
+          {signedIn && !post.mine && post.status === "VISIBLE" && (
+            <ReportButton
+              target="POST"
+              targetId={post.id}
+              title={post.replyToId ? "Yanıtı şikayet et" : "Gönderiyi şikayet et"}
+              className="ml-auto rounded-lg p-1 hover:text-danger"
+            />
+          )}
           {post.canDelete && (
-            <button onClick={remove} aria-label="Sil" className="ml-auto inline-flex items-center gap-1 rounded-lg p-1 hover:text-danger">
+            <button onClick={remove} aria-label="Sil" className={`${signedIn && !post.mine && post.status === "VISIBLE" ? "" : "ml-auto "}inline-flex items-center gap-1 rounded-lg p-1 hover:text-danger`}>
               <IconTrash size={17} aria-hidden="true" />
             </button>
           )}

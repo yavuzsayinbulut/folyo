@@ -75,7 +75,16 @@ export type Profile = {
 };
 
 export type Me = {
-  user: { id: string; name: string; email: string | null; avatarUrl: string | null; admin: boolean; verified: boolean };
+  user: {
+    id: string;
+    name: string;
+    email: string | null;
+    avatarUrl: string | null;
+    admin: boolean;
+    verified: boolean;
+    rulesAccepted: boolean;
+    suspended: boolean;
+  };
   profile: Profile | null;
 };
 
@@ -165,6 +174,7 @@ export type BlockedUser = { userId: string; name: string; avatarUrl: string | nu
 export type SmsProvider = "OFF" | "LOG" | "TWILIO" | "NETGSM";
 export type EmailProvider = "OFF" | "LOG" | "SMTP";
 export type StorageProvider = "LOCAL" | "S3";
+export type ModerationPolicy = { blockedWords: string[] | null; autoHideThreshold: number | null; dailyReportLimit: number | null };
 export type VerificationPolicy = { requireEmail: boolean; requirePhone: boolean; phoneCountries: string[] | null; smsDailyLimit: number | null };
 
 export type AdminSettings = {
@@ -182,6 +192,7 @@ export type AdminSettings = {
     s3: { endpoint: string | null; region: string | null; bucket: string | null; accessKey: string | null; pathStyle: boolean; secretKeySet: boolean } | null;
   };
   policy: VerificationPolicy;
+  moderation: ModerationPolicy;
   allowLog: boolean;
   warnings: string[];
 };
@@ -213,7 +224,7 @@ export type Post = {
   body: string | null;
   media: Asset[];
   audience: PostAudience | null;
-  status: "VISIBLE" | "PENDING";
+  status: "VISIBLE" | "PENDING" | "HIDDEN";
   likeCount: number;
   replyCount: number;
   likedByMe: boolean;
@@ -281,3 +292,25 @@ export type AvatarStatus = {
   auto: { url: string; source: "SPOTIFY" | "STRAVA" | "GENERATED"; platforms: string[] } | null;
   accountUrl: string | null;
 };
+
+// --- sikayet ve moderasyon ---
+
+export type ReportTarget = "POST" | "MESSAGE" | "PROFILE" | "GUESTBOOK";
+export type ReportReason = "SPAM" | "HARASSMENT" | "HATE" | "SEXUAL" | "VIOLENCE" | "SELF_HARM" | "IMPERSONATION" | "ILLEGAL" | "OTHER";
+
+export type ReportGroup = {
+  targetType: ReportTarget;
+  targetId: string;
+  author: { id: string; name: string; username: string | null; suspended: boolean } | null;
+  snapshot: string | null;
+  link: string | null;
+  reasons: Record<ReportReason, number>;
+  reports: { reason: ReportReason; note: string | null; at: string }[];
+  count: number;
+  hidden: boolean;
+  status: "OPEN" | "REMOVED" | "DISMISSED";
+  firstAt: string;
+  lastAt: string;
+};
+
+export type Suspension = { userId: string; name: string; username: string | null; reason: string | null; at: string };
