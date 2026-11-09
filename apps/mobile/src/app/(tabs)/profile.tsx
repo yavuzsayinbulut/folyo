@@ -10,7 +10,7 @@ import { confirm } from "@/lib/confirm";
 import { setUpPush } from "@/lib/notifications";
 import { useSession } from "@/lib/session";
 import { useColors } from "@/lib/theme";
-import type { Profile } from "@/lib/types";
+import type { AvatarStatus, Profile } from "@/lib/types";
 import { useMeAndCards } from "@/lib/useMe";
 
 export default function ProfileTab() {
@@ -18,16 +18,42 @@ export default function ProfileTab() {
   const { signOut } = useSession();
   const { me, setMe } = useMeAndCards();
   const profile = me?.profile;
+  const api = useApi();
+  const [avatar, setAvatar] = useState<AvatarStatus | null>(null);
+  const loadAvatar = useCallback(() => {
+    api<AvatarStatus>("/api/me/avatar").then(
+      (status) => {
+        setAvatar(status);
+        setMe((current) => (current && current.user.avatarUrl !== status.avatarUrl ? { ...current, user: { ...current.user, avatarUrl: status.avatarUrl } } : current));
+      },
+      () => undefined,
+    );
+  }, [api, setMe]);
+  useFocusEffect(
+    useCallback(() => {
+      loadAvatar();
+    }, [loadAvatar]),
+  );
 
   return (
     <Screen>
       <Title>Profil</Title>
       {me ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 8 }}>
-          <AvatarButton name={profile?.displayName ?? me.user.name} url={me.user.avatarUrl} onChange={(avatarUrl) => setMe({ ...me, user: { ...me.user, avatarUrl } })} />
+          <AvatarButton
+            name={profile?.displayName ?? me.user.name}
+            url={me.user.avatarUrl}
+            status={avatar}
+            onChange={() => loadAvatar()}
+          />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 17, fontWeight: "700", color: c.ink }}>{profile?.displayName ?? me.user.name}</Text>
             <Text style={{ fontSize: 13, color: c.ink3 }}>{profile ? `folyo.app/${profile.username}` : me.user.email ?? ""}</Text>
+            {avatar && !avatar.uploadedUrl && avatar.auto ? (
+              <Text style={{ fontSize: 12, color: c.accent, marginTop: 2 }} numberOfLines={2}>
+                Otomatik fotoğraf · {autoLabel(avatar.auto)}
+              </Text>
+            ) : null}
           </View>
         </View>
       ) : null}
@@ -284,7 +310,13 @@ function Row({ label, value, onChange }: { label: string; value: boolean; onChan
  * Profil fotografi: dokununca galeriden secilir ve oldugu gibi yuklenir (kalite korunur, konum bilgisi sunucuda
  * silinir). Ozel fotograf varsa kaldirma secenegi de sunulur.
  */
-function AvatarButton({ name, url, onChange }: { name: string; url: string | null; onChange: (url: string | null) => void }) {
+const SOURCE: Record<string, string> = { SPOTIFY: "Spotify fotoğrafın", STRAVA: "Strava fotoğrafın" };
+
+function autoLabel(auto: NonNullable<AvatarStatus["auto"]>): string {
+  return SOURCE[auto.source] ?? `${auto.platforms.join(", ")} hesaplarından üretildi`;
+}
+
+function AvatarButton({ name, url, status, onChange }: { name: string; url: string | null; status: AvatarStatus | null; onChange: (url: string | null) => void }) {
   const c = useColors();
   const api = useApi();
   const upload = useUpload();
@@ -310,12 +342,11 @@ function AvatarButton({ name, url, onChange }: { name: string; url: string | nul
   }
 
   function choose() {
-    const own = !!url && url.startsWith("/api/public/assets/");
-    if (!own) return pick();
-    Alert.alert("Profil fotoğrafı", undefined, [
+    if (!status?.uploadedUrl) return pick();
+    Alert.alert("Profil fotoğrafı", status.auto ? `Kaldırırsan otomatik fotoğraf kullanılır (${autoLabel(status.auto)}).` : undefined, [
       { text: "Yeni fotoğraf seç", onPress: pick },
       {
-        text: "Kaldır",
+        text: status.auto ? "Otomatik fotoğrafa dön" : "Kaldır",
         style: "destructive",
         onPress: () => api("/api/me/avatar", { method: "DELETE" }).then(() => onChange(null), () => undefined),
       },
