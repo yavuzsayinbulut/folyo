@@ -48,3 +48,56 @@ export function useApi() {
     [token, signOut],
   );
 }
+
+/** Gorsel isteklerine eklenecek kimlik: kitlesi kisitli kartlarin fotograflari sahibine de token'la gelir. */
+export function useAuthHeaders(): Record<string, string> | undefined {
+  const { token } = useSession();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
+export type PickedFile = { uri: string; name: string; type: string };
+
+/**
+ * Dosya yukler (multipart, Bearer). XMLHttpRequest yukleme ilerlemesi verir; buyuk videolarda yuzde gosterilir.
+ * Dosya oldugu gibi gider: sikistirma yok, kalite sunucuda korunur.
+ */
+export function useUpload() {
+  const { token, signOut } = useSession();
+  return useCallback(
+    <T,>(path: string, file: PickedFile, options: { method?: "POST" | "PUT"; onProgress?: (fraction: number) => void } = {}) =>
+      new Promise<T>((resolve, reject) => {
+        const form = new FormData();
+        form.append("file", file as unknown as Blob);
+        const xhr = new XMLHttpRequest();
+        xhr.open(options.method ?? "POST", `${API_URL}${path}`);
+        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) options.onProgress?.(event.loaded / event.total);
+        };
+        xhr.onload = () => {
+          if (xhr.status === 401) {
+            signOut();
+            return reject(new ApiError(401, "Oturumun sona erdi, tekrar giriş yap"));
+          }
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              return resolve((xhr.responseText ? JSON.parse(xhr.responseText) : undefined) as T);
+            } catch {
+              return reject(new ApiError(xhr.status, "Yanıt okunamadı"));
+            }
+          }
+          let message = xhr.status === 413 ? "Dosya çok büyük" : "Yüklenemedi";
+          try {
+            const problem = JSON.parse(xhr.responseText);
+            if (problem?.detail) message = problem.detail;
+          } catch {
+            // govde JSON degil
+          }
+          reject(new ApiError(xhr.status, message));
+        };
+        xhr.onerror = () => reject(new ApiError(0, "Bağlantı koptu, tekrar dene"));
+        xhr.send(form);
+      }),
+    [token, signOut],
+  );
+}

@@ -3,12 +3,14 @@ import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Tex
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Platform } from "@/lib/platforms";
 import type { PageLook } from "@/lib/pageThemes";
+import { absolute } from "@/lib/config";
 import { useColors, useTone } from "@/lib/theme";
 
-export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
+/** underHeader: ekranin ustunde gezinme basligi varsa ust guvenli alani baslik zaten birakir; ikinci kez eklenmez. */
+export function Screen({ children, scroll = true, underHeader = false }: { children: ReactNode; scroll?: boolean; underHeader?: boolean }) {
   const c = useColors();
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.bg }}>
+    <SafeAreaView edges={underHeader ? [] : ["top"]} style={{ flex: 1, backgroundColor: c.bg }}>
       {scroll ? (
         <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
           {children}
@@ -161,7 +163,9 @@ export function Avatar({ name, url, size = 52 }: { name: string; url?: string | 
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const initials = (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? "?").slice(0, 2)).toLocaleUpperCase("tr");
   if (url) {
-    return <Image source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} accessibilityIgnoresInvertColors />;
+    // Yuklenen profil fotografi API'den gelir (goreli adres); kucuk gosterimde 128 px kopya yeter.
+    const src = url.startsWith("/api/public/assets/") && size <= 64 ? url.replace(/\/avatar$/, "/small") : url;
+    return <Image source={{ uri: absolute(src) }} style={{ width: size, height: size, borderRadius: size / 2 }} accessibilityIgnoresInvertColors />;
   }
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.accentSoft, alignItems: "center", justifyContent: "center" }}>

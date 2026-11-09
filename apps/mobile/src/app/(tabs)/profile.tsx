@@ -1,15 +1,16 @@
-import { IconBell, IconLogout, IconTrash } from "@tabler/icons-react-native";
-import { useFocusEffect } from "expo-router";
+import { IconBell, IconCamera, IconChevronRight, IconLogout, IconShieldCheck, IconShieldLock, IconTrash } from "@tabler/icons-react-native";
+import * as ImagePicker from "expo-image-picker";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Platform, Pressable, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, Switch, Text, View } from "react-native";
 import { AppearancePicker } from "@/components/AppearancePicker";
-import { Avatar, Body, Button, Field, Label, Panel, Screen, SectionHeader, Segmented, Title } from "@/components/ui";
-import { ApiError, useApi } from "@/lib/api";
+import { Avatar, Body, Button, Field, Panel, Screen, SectionHeader, Title } from "@/components/ui";
+import { ApiError, useApi, useUpload } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { setUpPush } from "@/lib/notifications";
 import { useSession } from "@/lib/session";
 import { useColors } from "@/lib/theme";
-import type { Profile, Visibility } from "@/lib/types";
+import type { Profile } from "@/lib/types";
 import { useMeAndCards } from "@/lib/useMe";
 
 export default function ProfileTab() {
@@ -23,7 +24,7 @@ export default function ProfileTab() {
       <Title>Profil</Title>
       {me ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 8 }}>
-          <Avatar name={profile?.displayName ?? me.user.name} url={me.user.avatarUrl} size={52} />
+          <AvatarButton name={profile?.displayName ?? me.user.name} url={me.user.avatarUrl} onChange={(avatarUrl) => setMe({ ...me, user: { ...me.user, avatarUrl } })} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 17, fontWeight: "700", color: c.ink }}>{profile?.displayName ?? me.user.name}</Text>
             <Text style={{ fontSize: 13, color: c.ink3 }}>{profile ? `folyo.app/${profile.username}` : me.user.email ?? ""}</Text>
@@ -48,6 +49,25 @@ export default function ProfileTab() {
           <AppearancePicker profile={profile} onSaved={(updated) => setMe({ ...me, profile: updated })} />
         </>
       ) : null}
+
+      <SectionHeader title="Güvenlik ve gizlilik" />
+      <Panel>
+        <LinkRow
+          icon={<IconShieldCheck size={20} color={me?.user.verified ? c.okInk : c.ink2} />}
+          title="Hesap doğrulama"
+          detail={me?.user.verified ? "Doğrulandı" : "Mesaj ve yorum yazmak için gerekli"}
+          onPress={() => router.push("/verify")}
+        />
+        {profile ? (
+          <LinkRow
+            icon={<IconShieldLock size={20} color={c.ink2} />}
+            title="Gizlilik"
+            detail="Kim görebilir, kim yazabilir"
+            onPress={() => router.push("/privacy")}
+            last
+          />
+        ) : null}
+      </Panel>
 
       <SectionHeader title="Bildirimler" />
       <NotificationSettings />
@@ -117,7 +137,6 @@ function ProfileForm({ profile, onSaved }: { profile: Profile; onSaved: (profile
     bio: profile.bio ?? "",
     location: profile.location ?? "",
     status: profile.status ?? "",
-    visibility: profile.visibility as Visibility,
   });
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -155,24 +174,40 @@ function ProfileForm({ profile, onSaved }: { profile: Profile; onSaved: (profile
         style={{ height: 90, paddingTop: 10, textAlignVertical: "top" }}
       />
       <Field label="Konum" value={form.location} onChangeText={set("location")} maxLength={60} placeholder="İstanbul" autoCapitalize="words" />
-      <Label>Görünürlük</Label>
-      <View style={{ marginBottom: 18 }}>
-        <Segmented
-          options={[
-            { value: "PUBLIC", label: "Herkese açık" },
-            { value: "UNLISTED", label: "Linki bilen" },
-          ]}
-          value={form.visibility}
-          onChange={(value) => set("visibility")(value)}
-        />
-      </View>
       <Button label="Kaydet" onPress={save} busy={busy} />
       {message ? <Text style={{ marginTop: 8, color: message.ok ? c.okInk : c.danger, textAlign: "center" }}>{message.text}</Text> : null}
     </>
   );
 }
 
-type Settings = { guestbook: boolean; weeklySummary: boolean };
+function LinkRow(props: { icon: React.ReactNode; title: string; detail: string; onPress: () => void; last?: boolean }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${props.title}: ${props.detail}`}
+      onPress={props.onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingVertical: 10,
+        borderBottomWidth: props.last ? 0 : 0.5,
+        borderBottomColor: c.line,
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      {props.icon}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, color: c.ink }}>{props.title}</Text>
+        <Text style={{ fontSize: 13, color: c.ink3 }}>{props.detail}</Text>
+      </View>
+      <IconChevronRight size={18} color={c.ink3} />
+    </Pressable>
+  );
+}
+
+type Settings = { guestbook: boolean; weeklySummary: boolean; messages: boolean };
 
 /** Bildirim izni + cihaz kaydi ve hangi bildirimlerin gelecegi. Tercihler sunucuda tutulur (tum cihazlar icin). */
 function NotificationSettings() {
@@ -222,6 +257,7 @@ function NotificationSettings() {
     <Panel>
       {settings ? (
         <>
+          <Row label="Yeni özel mesaj" value={settings.messages} onChange={(v) => toggle("messages", v)} />
           <Row label="Ziyaretçi defterine yeni mesaj" value={settings.guestbook} onChange={(v) => toggle("guestbook", v)} />
           <Row label="Pazartesi haftalık özet" value={settings.weeklySummary} onChange={(v) => toggle("weeklySummary", v)} />
         </>
@@ -241,5 +277,58 @@ function Row({ label, value, onChange }: { label: string; value: boolean; onChan
       <Text style={{ fontSize: 15, color: c.ink, flex: 1 }}>{label}</Text>
       <Switch value={value} onValueChange={onChange} trackColor={{ true: c.accent, false: c.lineStrong }} thumbColor="#ffffff" accessibilityLabel={label} />
     </View>
+  );
+}
+
+/**
+ * Profil fotografi: dokununca galeriden secilir ve oldugu gibi yuklenir (kalite korunur, konum bilgisi sunucuda
+ * silinir). Ozel fotograf varsa kaldirma secenegi de sunulur.
+ */
+function AvatarButton({ name, url, onChange }: { name: string; url: string | null; onChange: (url: string | null) => void }) {
+  const c = useColors();
+  const api = useApi();
+  const upload = useUpload();
+  const [progress, setProgress] = useState<number | null>(null);
+
+  async function pick() {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1, exif: false });
+    if (result.canceled) return;
+    const picked = result.assets[0];
+    setProgress(0);
+    try {
+      const saved = await upload<{ avatarUrl: string }>(
+        "/api/me/avatar",
+        { uri: picked.uri, name: picked.fileName ?? "avatar.jpg", type: picked.mimeType ?? "image/jpeg" },
+        { method: "PUT", onProgress: setProgress },
+      );
+      onChange(saved.avatarUrl);
+    } catch (e) {
+      Alert.alert("Fotoğraf yüklenemedi", e instanceof ApiError ? e.message : "Tekrar dene");
+    } finally {
+      setProgress(null);
+    }
+  }
+
+  function choose() {
+    const own = !!url && url.startsWith("/api/public/assets/");
+    if (!own) return pick();
+    Alert.alert("Profil fotoğrafı", undefined, [
+      { text: "Yeni fotoğraf seç", onPress: pick },
+      {
+        text: "Kaldır",
+        style: "destructive",
+        onPress: () => api("/api/me/avatar", { method: "DELETE" }).then(() => onChange(null), () => undefined),
+      },
+      { text: "Vazgeç", style: "cancel" },
+    ]);
+  }
+
+  return (
+    <Pressable accessibilityLabel="Profil fotoğrafını değiştir" onPress={choose} disabled={progress !== null}>
+      <Avatar name={name} url={url} size={56} />
+      <View style={{ position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: c.accent, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: c.bg }}>
+        {progress !== null ? <ActivityIndicator size="small" color={c.onAccent} /> : <IconCamera size={13} color={c.onAccent} />}
+      </View>
+    </Pressable>
   );
 }

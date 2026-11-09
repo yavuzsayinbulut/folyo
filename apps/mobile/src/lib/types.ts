@@ -5,6 +5,20 @@ export type CardType = "LINK" | "TEXT" | "GITHUB" | "REDDIT" | "LASTFM" | "SPOTI
 export type CardSize = "SMALL" | "WIDE" | "LARGE";
 export type Visibility = "PUBLIC" | "UNLISTED";
 
+export type Audience = "EVERYONE" | "SIGNED_IN" | "VERIFIED" | "ONLY_ME";
+export type InteractionPolicy = "VERIFIED" | "APPROVAL" | "NOBODY";
+
+export type Privacy = {
+  indexable: boolean;
+  profile: Audience;
+  location: Audience;
+  localTime: Audience;
+  activity: Audience;
+  guestbook: Audience;
+  comments: InteractionPolicy;
+  messages: InteractionPolicy;
+};
+
 export type MediaItem = { id: string; url: string; width: number | null; height: number | null };
 
 export type Card = {
@@ -12,6 +26,7 @@ export type Card = {
   type: CardType;
   size: CardSize;
   visible: boolean;
+  audience: Exclude<Audience, "ONLY_ME">;
   config: { url?: string; title?: string; text?: string; username?: string };
   media?: MediaItem[] | null;
 };
@@ -27,10 +42,11 @@ export type Profile = {
   visibility: Visibility;
   theme: ThemeKey;
   accent: AccentKey | null;
+  privacy: Privacy;
 };
 
 export type Me = {
-  user: { id: string; name: string; email: string | null; avatarUrl: string | null };
+  user: { id: string; name: string; email: string | null; avatarUrl: string | null; admin: boolean; verified: boolean };
   profile: Profile | null;
 };
 
@@ -42,3 +58,105 @@ export type Stats = {
   previous: StatTotals;
   topCards: { cardId: string; type: CardType; size: CardSize; config: Card["config"]; clicks: number }[];
 };
+
+export type VerificationStatus = {
+  email: string | null;
+  emailVerified: boolean;
+  phone: string | null;
+  phoneVerified: boolean;
+  requireEmail: boolean;
+  requirePhone: boolean;
+  verified: boolean;
+  emailAvailable: boolean;
+  phoneAvailable: boolean;
+};
+
+
+
+// --- medya, gonderiler, sohbet (web'deki tiplerle ayni sozlesme) ---
+
+export type Interaction = "ALLOWED" | "OWNER" | "SIGN_IN" | "VERIFY" | "BLOCKED" | "CLOSED";
+export type AssetKind = "PHOTO" | "VIDEO" | "AVATAR" | "STICKER";
+
+/** url: orijinal kalite; thumbUrl/largeUrl: listelerde hizli acilan kopyalar; posterUrl: video kapagi. */
+export type Asset = {
+  id: string;
+  kind: AssetKind;
+  contentType: string;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  url: string;
+  thumbUrl: string;
+  largeUrl: string;
+  posterUrl: string | null;
+};
+
+export type PostAudience = Exclude<Audience, "ONLY_ME">;
+
+export type Post = {
+  id: string;
+  replyToId: string | null;
+  author: { username: string | null; displayName: string; avatarUrl: string | null; verified: boolean };
+  body: string | null;
+  media: Asset[];
+  audience: PostAudience | null;
+  status: "VISIBLE" | "PENDING";
+  likeCount: number;
+  replyCount: number;
+  likedByMe: boolean;
+  mine: boolean;
+  canDelete: boolean;
+  createdAt: string;
+};
+
+export type PostPage = { posts: Post[]; next: string | null };
+export type PostThread = { post: Post; replies: Post[]; replyInteraction: Interaction; repliesNeedApproval: boolean };
+
+export type ChatFolder = "CHATS" | "REQUESTS" | "ARCHIVE";
+export type MemberState = "ACTIVE" | "REQUEST" | "ARCHIVED";
+export type MessageKind = "TEXT" | "PHOTO" | "VIDEO" | "STICKER";
+export type LastSeenAudience = "EVERYONE" | "CHATS" | "NOBODY";
+
+export type ChatMessage = {
+  id: number;
+  seq: number;
+  senderId: string;
+  mine: boolean;
+  kind: MessageKind;
+  body: string | null;
+  sticker: string | null;
+  stickerUrl: string | null;
+  asset: Asset | null;
+  createdAt: string;
+  deleted: boolean;
+};
+
+export type Conversation = {
+  id: string;
+  other: { userId: string; name: string; username: string | null; avatarUrl: string | null };
+  state: MemberState;
+  unread: number;
+  lastMessage: ChatMessage | null;
+  lastMessageAt: string | null;
+  otherDeliveredSeq: number;
+  otherReadSeq: number | null;
+  presence: { online: boolean; lastSeenAt: string | null } | null;
+  startedByMe: boolean;
+};
+
+export type ChatThread = { conversation: Conversation; messages: ChatMessage[]; nextBefore: number | null };
+export type ChatUnread = { chats: number; requests: number };
+export type ChatSettings = { lastSeenAudience: LastSeenAudience; readReceipts: boolean };
+export type StickerPack = { id: string; name: string; stickers: { id: string; title: string; url: string }[] };
+export type StickerSet = { packs: StickerPack[]; mine: Asset[] };
+export type BlockedUser = { userId: string; name: string; avatarUrl: string | null; username: string | null; blockedAt: string };
+
+export type RealtimeEvent =
+  | { type: "ready" }
+  | { type: "pong" }
+  | { type: "message"; conversationId: string; message: ChatMessage }
+  | { type: "receipt"; conversationId: string; userId: string; deliveredSeq: number; readSeq: number | null }
+  | { type: "typing"; conversationId: string; userId: string }
+  | { type: "presence"; userId: string; online: boolean; lastSeenAt: string | null; hidden: boolean }
+  | { type: "deleted"; conversationId: string; messageId: number };
