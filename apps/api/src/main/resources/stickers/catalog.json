@@ -1,0 +1,78 @@
+[
+  {
+    "id": "selamlar",
+    "name": "Selamlar",
+    "stickers": [
+      {
+        "id": "selamlar/merhaba",
+        "title": "Merhaba!"
+      },
+      {
+        "id": "selamlar/tesekkurler",
+        "title": "Teşekkürler"
+      },
+      {
+        "id": "selamlar/gorusuruz",
+        "title": "Görüşürüz"
+      },
+      {
+        "id": "selamlar/tamam",
+        "title": "Tamam"
+      },
+      {
+        "id": "selamlar/gunaydin",
+        "title": "Günaydın"
+      },
+      {
+        "id": "selamlar/iyi-geceler",
+        "title": "İyi geceler"
+      },
+      {
+        "id": "selamlar/nasilsin",
+        "title": "Nasılsın?"
+      },
+      {
+        "id": "selamlar/tebrikler",
+        "title": "Tebrikler!"
+      }
+    ]
+  },
+  {
+    "id": "duygular",
+    "name": "Duygular",
+    "stickers": [
+      {
+        "id": "duygular/haha",
+        "title": "Haha"
+      },
+      {
+        "id": "duygular/bayildim",
+        "title": "Bayıldım"
+      },
+      {
+        "id": "duygular/uzgunum",
+        "title": "Üzgünüm"
+      },
+      {
+        "id": "duygular/vay",
+        "title": "Vay!"
+      },
+      {
+        "id": "duygular/off",
+        "title": "Off"
+      },
+      {
+        "id": "duygular/dusunuyorum",
+        "title": "Düşünüyorum"
+      },
+      {
+        "id": "duygular/kahve",
+        "title": "Kahve?"
+      },
+      {
+        "id": "duygular/super",
+        "title": "Süper"
+      }
+    ]
+  }
+]
