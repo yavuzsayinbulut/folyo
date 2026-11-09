@@ -78,7 +78,7 @@ export function CardManager({ cards, onChange }: { cards: Card[]; onChange: Disp
     });
   };
 
-  const patch = (card: Card, body: Partial<Pick<Card, "size" | "visible">>) =>
+  const patch = (card: Card, body: Partial<Pick<Card, "size" | "visible" | "audience">>) =>
     run(async () => replace(await api<Card>(`/api/me/cards/${card.id}`, { method: "PATCH", body })));
 
   const remove = async (card: Card) => {
@@ -109,6 +109,7 @@ export function CardManager({ cards, onChange }: { cards: Card[]; onChange: Disp
                   card={card}
                   onResize={() => patch(card, { size: SIZES[(SIZES.indexOf(card.size) + 1) % SIZES.length] })}
                   onToggle={() => patch(card, { visible: !card.visible })}
+                  onAudience={(audience) => patch(card, { audience })}
                   onDelete={() => remove(card)}
                   onMediaChange={(fn) => update((list) => list.map((c) => (c.id === card.id ? { ...c, media: fn(c.media ?? []) } : c)))}
                 />
@@ -162,6 +163,7 @@ function CardRow(props: {
   card: Card;
   onResize: () => void;
   onToggle: () => void;
+  onAudience: (audience: Card["audience"]) => void;
   onDelete: () => void;
   onMediaChange: (fn: (media: MediaItem[]) => MediaItem[]) => void;
 }) {
@@ -200,6 +202,19 @@ function CardRow(props: {
         >
           {SIZE_LABEL[card.size]}
         </button>
+        {card.visible && (
+          <select
+            value={card.audience}
+            onChange={(e) => props.onAudience(e.target.value as Card["audience"])}
+            aria-label={`${title} kartını kim görebilir`}
+            title="Kim görebilir"
+            className={`h-7 max-w-[7.5rem] rounded-full border px-2 text-xs outline-none focus:border-accent ${card.audience === "EVERYONE" ? "border-line-strong text-ink-2" : "border-accent/40 bg-accent-soft text-accent-ink"}`}
+          >
+            <option value="EVERYONE">Herkes</option>
+            <option value="SIGNED_IN">Giriş yapanlar</option>
+            <option value="VERIFIED">Doğrulanmışlar</option>
+          </select>
+        )}
         <button onClick={props.onToggle} aria-label={card.visible ? `${title} kartını gizle` : `${title} kartını göster`} title={card.visible ? "Gizle" : "Göster"} className={iconButton}>
           {card.visible ? <IconEye size={16} aria-hidden="true" /> : <IconEyeOff size={16} aria-hidden="true" />}
         </button>

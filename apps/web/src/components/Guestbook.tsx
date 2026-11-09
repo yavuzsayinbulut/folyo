@@ -1,23 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { IconMessage } from "@tabler/icons-react";
-import Link from "next/link";
-import { api, ApiError, fetchMe } from "@/lib/client-api";
-import type { GuestbookEntry, Me } from "@/lib/types";
+import { api, ApiError } from "@/lib/client-api";
+import type { GuestbookEntry, Interaction } from "@/lib/types";
 import { relativeTime as relative } from "@/lib/time";
 import { Avatar } from "./Avatar";
+import { InteractionNotice } from "./InteractionNotice";
 
-export function Guestbook({ username, initialEntries }: { username: string; initialEntries: GuestbookEntry[] }) {
+export function Guestbook({
+  username,
+  initialEntries,
+  entriesVisible,
+  interaction,
+  needsApproval,
+}: {
+  username: string;
+  initialEntries: GuestbookEntry[];
+  entriesVisible: boolean;
+  interaction: Interaction;
+  needsApproval: boolean;
+}) {
   const [entries, setEntries] = useState(initialEntries);
-  const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-
-  useEffect(() => {
-    fetchMe().then(setMe, () => setMe(null));
-  }, []);
+  const canWrite = interaction === "ALLOWED" || interaction === "OWNER";
+  const awaitsApproval = needsApproval && interaction !== "OWNER";
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
@@ -27,9 +37,14 @@ export function Guestbook({ username, initialEntries }: { username: string; init
     setSending(true);
     try {
       await api(`/api/profiles/${username}/guestbook`, { method: "POST", body: { body: text } });
-      const fresh = await api<GuestbookEntry[]>(`/api/public/profiles/${username}/guestbook`);
-      setEntries(fresh);
       setBody("");
+      if (awaitsApproval) {
+        setNotice("Mesajın sayfa sahibine iletildi; onaylarsa burada görünecek.");
+      } else if (entriesVisible) {
+        setEntries(await api<GuestbookEntry[]>(`/api/public/profiles/${username}/guestbook`));
+      } else {
+        setNotice("Mesajın kaydedildi.");
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Mesaj gönderilemedi");
     } finally {
@@ -42,15 +57,14 @@ export function Guestbook({ username, initialEntries }: { username: string; init
       <div className="flex items-center gap-2 mb-4">
         <IconMessage size={18} className="text-ink-2" aria-hidden="true" />
         <h2 id="guestbook" className="font-medium">Ziyaretçi defteri</h2>
-        <span className="text-sm text-ink-3">{entries.length}</span>
+        {entriesVisible && <span className="text-sm text-ink-3">{entries.length}</span>}
       </div>
 
-      {me === null && (
-        <Link href={`/login?next=/${username}`} className="block rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-ink-2 hover:text-ink mb-4">
-          Mesaj bırakmak için giriş yap
-        </Link>
-      )}
-      {me && (
+      {!canWrite ? (
+        <div className="mb-4">
+          <InteractionNotice interaction={interaction} username={username} action="Deftere yazmak" />
+        </div>
+      ) : (
         <form onSubmit={send} className="mb-5">
           <div className="flex gap-2">
             <input
@@ -58,6 +72,7 @@ export function Guestbook({ username, initialEntries }: { username: string; init
               onChange={(e) => {
                 setBody(e.target.value);
                 setError(null);
+                setNotice(null);
               }}
               maxLength={280}
               placeholder="Karaköy kareleri harika"
@@ -72,14 +87,22 @@ export function Guestbook({ username, initialEntries }: { username: string; init
             <p role="alert" className="mt-2 text-sm text-danger">
               {error}
             </p>
+          ) : notice ? (
+            <p role="status" className="mt-2 text-sm text-ok-ink">
+              {notice}
+            </p>
           ) : (
-            <p className="mt-2 text-xs text-ink-3">Mesajın {me.user.name} adı ve profil fotoğrafınla herkese açık görünür.</p>
+            <p className="mt-2 text-xs text-ink-3">
+              Mesajın adın ve profil fotoğrafınla herkese açık görünür{awaitsApproval ? ", sayfa sahibi onayladıktan sonra" : ""}.
+            </p>
           )}
         </form>
       )}
 
-      {entries.length === 0 ? (
-        <p className="text-sm text-ink-3">İlk mesajı sen bırak.</p>
+      {!entriesVisible ? (
+        <p className="text-sm text-ink-3">Sayfa sahibi defterdeki mesajları herkese göstermiyor.</p>
+      ) : entries.length === 0 ? (
+        <p className="text-sm text-ink-3">{canWrite ? "İlk mesajı sen bırak." : "Henüz mesaj yok."}</p>
       ) : (
         <ul className="flex flex-col gap-4">
           {entries.map((entry) => (

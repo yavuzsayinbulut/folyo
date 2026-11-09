@@ -6,12 +6,12 @@ import { platformFor } from "@/lib/platforms";
 import type { Card } from "@/lib/types";
 
 const DEMO: Card[] = [
-  { id: "1", type: "LINK", size: "WIDE", visible: true, config: { url: "https://open.spotify.com/user/demo", title: "Ne dinliyorum" } },
-  { id: "2", type: "LINK", size: "SMALL", visible: true, config: { url: "https://github.com/demo" } },
-  { id: "3", type: "LINK", size: "SMALL", visible: true, config: { url: "https://instagram.com/demo" } },
-  { id: "4", type: "TEXT", size: "WIDE", visible: true, config: { text: "Backend geliştiriciyim. Hafta sonları film fotoğrafı çekiyorum." } },
-  { id: "5", type: "LINK", size: "SMALL", visible: true, config: { url: "https://linkedin.com/in/demo" } },
-  { id: "6", type: "LINK", size: "SMALL", visible: true, config: { url: "https://vsco.co/demo" } },
+  { id: "1", type: "LINK", size: "WIDE", visible: true, audience: "EVERYONE", config: { url: "https://open.spotify.com/user/demo", title: "Ne dinliyorum" } },
+  { id: "2", type: "LINK", size: "SMALL", visible: true, audience: "EVERYONE", config: { url: "https://github.com/demo" } },
+  { id: "3", type: "LINK", size: "SMALL", visible: true, audience: "EVERYONE", config: { url: "https://instagram.com/demo" } },
+  { id: "4", type: "TEXT", size: "WIDE", visible: true, audience: "EVERYONE", config: { text: "Backend geliştiriciyim. Hafta sonları film fotoğrafı çekiyorum." } },
+  { id: "5", type: "LINK", size: "SMALL", visible: true, audience: "EVERYONE", config: { url: "https://linkedin.com/in/demo" } },
+  { id: "6", type: "LINK", size: "SMALL", visible: true, audience: "EVERYONE", config: { url: "https://vsco.co/demo" } },
 ];
 
 const PLATFORM_URLS = [

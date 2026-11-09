@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
 import { api, ApiError } from "@/lib/client-api";
 import type { GuestbookEntry } from "@/lib/types";
 import { useConfirm } from "../ConfirmDialog";
@@ -37,6 +37,11 @@ export function GuestbookModeration() {
     await load();
   }
 
+  const approve = (entry: GuestbookEntry) =>
+    act(() => api(`/api/me/guestbook/${entry.id}`, { method: "PATCH", body: { status: "VISIBLE" } }));
+
+  const pending = entries?.filter((e) => e.status === "PENDING").length ?? 0;
+
   const toggle = (entry: GuestbookEntry) =>
     act(() => api(`/api/me/guestbook/${entry.id}`, { method: "PATCH", body: { status: entry.status === "VISIBLE" ? "HIDDEN" : "VISIBLE" } }));
 
@@ -52,7 +57,10 @@ export function GuestbookModeration() {
 
   return (
     <section className="rounded-2xl border border-line bg-surface p-5">
-      <h2 className="font-medium mb-4">Ziyaretçi defteri</h2>
+      <h2 className="font-medium mb-4">
+        Ziyaretçi defteri
+        {pending > 0 && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-normal text-accent-ink">{pending} onay bekliyor</span>}
+      </h2>
       {error && (
         <p role="alert" className="mb-3 flex items-center gap-3 text-sm text-danger">
           {error}
@@ -70,13 +78,24 @@ export function GuestbookModeration() {
       ) : (
         <ul className="flex flex-col divide-y divide-line">
           {entries.map((entry) => (
-            <li key={entry.id} className={`flex items-start gap-3 py-2.5 ${entry.status === "HIDDEN" ? "opacity-55" : ""}`}>
+            <li key={entry.id} className={`flex items-start gap-3 py-2.5 ${entry.status === "HIDDEN" ? "opacity-55" : ""} ${entry.status === "PENDING" ? "-mx-2 rounded-xl bg-accent-soft/40 px-2" : ""}`}>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">
                   {entry.authorName} {entry.status === "HIDDEN" && <span className="font-normal text-ink-3">· gizli</span>}
+                  {entry.status === "PENDING" && <span className="font-normal text-accent-ink">· onay bekliyor</span>}
                 </p>
                 <p className="text-sm text-ink-2 break-words">{entry.body}</p>
               </div>
+              {entry.status === "PENDING" && (
+                <button
+                  onClick={() => approve(entry)}
+                  aria-label={`${entry.authorName} mesajını onayla`}
+                  title="Onayla"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-accent px-2.5 text-xs font-medium text-on-accent"
+                >
+                  <IconCheck size={14} aria-hidden="true" /> Onayla
+                </button>
+              )}
               <button
                 onClick={() => toggle(entry)}
                 aria-label={entry.status === "VISIBLE" ? `${entry.authorName} mesajını gizle` : `${entry.authorName} mesajını göster`}

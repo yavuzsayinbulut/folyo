@@ -12,9 +12,11 @@ const TILE_COLORS = ["#C0DD97", "#F4C0D1", "#B5D4F4", "#FAC775", "#D3D1C7", "#9F
 /** Link mesajda paylasildiginda gorunen onizleme gorseli. */
 export default async function OpenGraphImage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
-  const page = await getPublicPage(username);
-  // Olmayan adres icin gorsel uretilmez: aksi halde herhangi bir metin folyo markasiyla onizlenebilir.
-  if (!page) notFound();
+  // Olmayan ya da gizli sayfa icin gorsel uretilmez: herhangi bir metin folyo markasiyla onizlenemez,
+  // gizli sayfanin adi baglanti onizlemesine sizmaz.
+  const result = await getPublicPage(username, false);
+  if (!result || result.kind === "restricted") notFound();
+  const page = result.page;
   const name = page.displayName;
   const bio = page.bio ?? "Tüm hesaplarım tek sayfada";
 

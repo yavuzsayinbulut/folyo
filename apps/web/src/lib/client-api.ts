@@ -52,28 +52,50 @@ export async function api<T = void>(path: string, init: { method?: string; body?
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-/** Tek dosya yukler (multipart). Content-Type'i tarayici boundary ile kendisi koyar. */
-export async function upload<T>(path: string, file: File): Promise<T> {
+/**
+ * Tek dosya yukler (multipart). Content-Type'i tarayici boundary ile kendisi koyar. Buyuk dosyalarda (video)
+ * ilerleme gosterilebilsin diye XMLHttpRequest kullanilir; fetch yukleme ilerlemesi vermez.
+ */
+export async function upload<T>(
+  path: string,
+  file: File | Blob,
+  options: { method?: "POST" | "PUT"; onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
+): Promise<T> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "X-XSRF-TOKEN": await csrfToken() },
-    credentials: "same-origin",
-    body: form,
+  const token = await csrfToken();
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method ?? "POST", path);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("X-XSRF-TOKEN", token);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) options.onProgress?.(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve((xhr.responseText ? JSON.parse(xhr.responseText) : undefined) as T);
+        } catch {
+          reject(new ApiError(xhr.status, "Yanıt okunamadı"));
+        }
+        return;
+      }
+      let message = xhr.status === 413 ? "Dosya çok büyük" : "Yüklenemedi";
+      try {
+        const problem = JSON.parse(xhr.responseText);
+        if (problem?.detail) message = problem.detail;
+      } catch {
+        // govde JSON degil
+      }
+      if (xhr.status === 401) message = "Önce giriş yap";
+      reject(new ApiError(xhr.status, message));
+    };
+    xhr.onerror = () => reject(new ApiError(0, "Bağlantı koptu, tekrar dene"));
+    xhr.onabort = () => reject(new ApiError(0, "Yükleme iptal edildi"));
+    options.signal?.addEventListener("abort", () => xhr.abort());
+    xhr.send(form);
   });
-  if (!res.ok) {
-    if (res.status === 413) throw new ApiError(413, "Dosya çok büyük (en fazla 10 MB)");
-    let message = "Yüklenemedi";
-    try {
-      const problem = await res.json();
-      if (problem?.detail) message = problem.detail;
-    } catch {
-      // govde JSON degil
-    }
-    throw new ApiError(res.status, message);
-  }
-  return res.json();
 }
 
 /** Giris yoksa null doner. */
