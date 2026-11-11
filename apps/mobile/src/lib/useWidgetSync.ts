@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { AppState } from "react-native";
-import VisitsWidget from "@/widgets/VisitsWidget";
+import VisitsWidget from "@/widgets/visits";
 import type { VisitsWidgetProps } from "@/widgets/types";
 import { useApi } from "./api";
 

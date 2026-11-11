@@ -1,3 +1,5 @@
+import { isRunningInExpoGo } from "expo";
+import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import * as Device from "expo-device";
 import * as Linking from "expo-linking";
@@ -5,7 +7,7 @@ import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
-import VisitsWidget from "@/widgets/VisitsWidget";
+import VisitsWidget from "@/widgets/visits";
 import { EMPTY_VISITS } from "@/widgets/types";
 import { API_URL, WEB_URL } from "./config";
 
@@ -20,6 +22,16 @@ const storage = {
     Platform.OS === "web" ? Promise.resolve(localStorage.setItem(TOKEN_KEY, value)) : SecureStore.setItemAsync(TOKEN_KEY, value),
   clear: () => (Platform.OS === "web" ? Promise.resolve(localStorage.removeItem(TOKEN_KEY)) : SecureStore.deleteItemAsync(TOKEN_KEY)),
 };
+
+/**
+ * Giristen sonra tarayicinin uygulamaya donecegi adres. Expo Go kendini "bare" bildirdigi icin
+ * Linking.createURL orada folyo:// uretir; Expo Go o semayi dinlemez, Android'de giris geri donmez.
+ * Expo Go'da donus adresi gelistirme sunucusunun exp:// adresidir.
+ */
+function authRedirect(): string {
+  const hostUri = Constants.expoConfig?.hostUri;
+  return isRunningInExpoGo() && hostUri ? `exp://${hostUri}/--/auth` : Linking.createURL("auth");
+}
 
 function base64Url(base64: string): string {
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -71,7 +83,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const challenge = base64Url(
       await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, { encoding: Crypto.CryptoEncoding.BASE64 }),
     );
-    const redirect = Linking.createURL("auth");
+    const redirect = authRedirect();
     const url = `${WEB_URL}/mobile-login?challenge=${challenge}&redirect=${encodeURIComponent(redirect)}`;
 
     const result = await WebBrowser.openAuthSessionAsync(url, redirect);
