@@ -1,3 +1,4 @@
+import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
 
 // Spring Boot API. Tarayici API'ye hep bu origin uzerinden gider; cookie ve CSRF ayni origin'de kalir, CORS gerekmez.
@@ -33,8 +34,19 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
 ];
 
+/**
+ * Gelistirmede telefon (Expo Go) mobil giris sayfasini bilgisayarin yerel ag adresiyle acar; Next bu adresten
+ * gelen dev kaynak isteklerini varsayilan olarak engeller. Yalniz bu makinenin kendi adresleri izinli;
+ * ag degisirse dev sunucusu yeniden baslatilmali. Uretim derlemesini etkilemez.
+ */
+const ownAddresses = Object.values(networkInterfaces())
+  .flat()
+  .filter((address) => address?.family === "IPv4" && !address.internal)
+  .map((address) => address!.address);
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  allowedDevOrigins: ownAddresses,
   poweredByHeader: false,
   cacheComponents: true,
   partialPrefetching: true,
